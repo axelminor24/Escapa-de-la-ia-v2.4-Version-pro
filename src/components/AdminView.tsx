@@ -160,7 +160,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const handleTestAudio = async (track: AudioTrackConfig) => {
     if (testingTrackId === track.id) {
-      audioEngine.stopVoice();
+      audioEngine.stopTest();
       setTestingTrackId(null);
       eventLogService.recordAudioEvent(
         track.title,
@@ -182,7 +182,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     await audioEngine.testTrack(
       track,
       () => setTestingTrackId(track.id),
-      () => setTestingTrackId(null)
+      () => setTestingTrackId((current) => current === track.id ? null : current)
     );
   };
 
@@ -783,14 +783,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </label>
                         <button
                           onClick={() => handleTestAudio(track)}
-                          disabled={isTesting}
                           className={`px-2.5 py-1 rounded font-bold text-[11px] transition-colors cursor-pointer ${
                             isTesting
                               ? 'bg-amber-500 text-black'
                               : 'bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 text-emerald-200'
                           }`}
                         >
-                          {isTesting ? 'Sonando...' : 'TEST'}
+                          {isTesting ? 'Detener' : 'TEST'}
                         </button>
                       </div>
                     </div>
@@ -859,14 +858,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </label>
                         <button
                           onClick={() => handleTestAudio(track)}
-                          disabled={isTesting}
                           className={`px-2.5 py-1 rounded font-bold text-[11px] transition-colors cursor-pointer ${
                             isTesting
                               ? 'bg-amber-500 text-black'
                               : 'bg-amber-950 hover:bg-amber-900 border border-amber-700 text-amber-200'
                           }`}
                         >
-                          {isTesting ? 'Sonando...' : 'TEST'}
+                          {isTesting ? 'Detener' : 'TEST'}
                         </button>
                       </div>
                     </div>
@@ -951,14 +949,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         </label>
                         <button
                           onClick={() => handleTestAudio(track)}
-                          disabled={isTesting}
                           className={`px-2.5 py-1 rounded font-bold text-[11px] transition-colors cursor-pointer ${
                             isTesting
                               ? 'bg-amber-500 text-black'
                               : 'bg-emerald-950 hover:bg-emerald-900 border border-emerald-700 text-emerald-200'
                           }`}
                         >
-                          {isTesting ? 'Sonando...' : 'TEST'}
+                          {isTesting ? 'Detener' : 'TEST'}
                         </button>
                       </div>
                     </div>
@@ -1027,14 +1024,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     {/* Test Button */}
                     <button
                       onClick={() => handleTestAudio(track)}
-                      disabled={isTesting}
                       className={`px-3 py-1 rounded font-bold transition-colors cursor-pointer ${
                         isTesting
                           ? 'bg-amber-500 text-black'
                           : 'bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-300'
                       }`}
                     >
-                      {isTesting ? 'Sonando...' : 'TEST'}
+                      {isTesting ? 'Detener' : 'TEST'}
                     </button>
                   </div>
                 </div>

@@ -77,6 +77,11 @@ export default function App() {
 
     setGameState('VICTORY');
 
+    // Ensure all 4 challenges are marked as solved on victory
+    const allSolved: ChallengesState = { 1: true, 2: true, 3: true, 4: true };
+    setChallenges(allSolved);
+    challengesRef.current = allSolved;
+
     // Record Event Log
     eventLogService.recordStateEvent(
       'VICTORY',
@@ -101,7 +106,7 @@ export default function App() {
     broadcast({
       type: 'VICTORY',
       gameState: 'VICTORY',
-      challenges: { 1: true, 2: true, 3: true, 4: true },
+      challenges: allSolved,
     });
   }, [broadcast]);
 
@@ -109,7 +114,10 @@ export default function App() {
   const setChallengeStatus = useCallback((num: ChallengeNumber, isSolved: boolean) => {
     setChallenges((prev) => {
       const wasSolved = prev[num];
+      if (wasSolved === isSolved) return prev;
+
       const updated = { ...prev, [num]: isSolved };
+      challengesRef.current = updated;
       const solvedCount = Object.values(updated).filter(Boolean).length;
 
       // Broadcast challenge update
@@ -124,13 +132,13 @@ export default function App() {
       // User requirement: When a challenge is completed, play its specific audio track,
       // superimposing over any current audio (pausing it) and resuming it once finished!
       if (!wasSolved && isSolved) {
-        if (num === 4 || solvedCount === 4) {
+        if (solvedCount === 4) {
           // All 4 challenges completed: trigger immediate victory
           setTimeout(() => {
             triggerVictory();
           }, 10);
         } else {
-          // Challenges 1, 2, or 3 completed:
+          // Specific challenge track:
           const challengeTrack = INITIAL_TRACKS.find((t) => t.id === `challenge_${num}`);
           if (challengeTrack) {
             audioEngine.playInterruptingVoiceTrack(challengeTrack);
@@ -143,11 +151,8 @@ export default function App() {
   }, [broadcast, triggerVictory]);
 
   const toggleChallenge = useCallback((num: ChallengeNumber) => {
-    setChallenges((prev) => {
-      const nextVal = !prev[num];
-      setChallengeStatus(num, nextVal);
-      return prev;
-    });
+    const currentVal = challengesRef.current[num];
+    setChallengeStatus(num, !currentVal);
   }, [setChallengeStatus]);
 
   // --- START COUNTDOWN (Guaranteed to advance the clock accurately and cancel intro voice) ---
@@ -188,7 +193,7 @@ export default function App() {
       eventLogService.updateTimeContext(getRemainingTimeStr(nextElapsed), nextElapsed);
 
       // Only process when second counter actually advances
-      if (nextElapsed === elapsedSecRef.current && elapsedSecRef.current > 0) return;
+      if (nextElapsed === elapsedSecRef.current && deltaSec > 0) return;
       elapsedSecRef.current = nextElapsed;
       setElapsedSec(nextElapsed);
 
@@ -365,10 +370,11 @@ export default function App() {
     audioEngine.pauseAmbient();
     audioEngine.stopVoice();
 
+    const frozenRemaining = getRemainingTimeStr(elapsedSecRef.current);
     eventLogService.recordStateEvent(
       'PAUSED',
       'Partida Pausada',
-      `Cronómetro congelado a los ${getRemainingTimeStr(elapsedOffsetRef.current)} restantes.`,
+      `Cronómetro congelado a los ${frozenRemaining} restantes.`,
       'warning',
       'Operador'
     );
@@ -418,6 +424,27 @@ export default function App() {
     });
   }, [broadcast]);
 
+  // Ref to hold current handlers so the broadcast / storage listener does not re-subscribe on re-renders
+  const handlersRef = useRef({
+    startGameSequence,
+    startCountdown,
+    triggerVictory,
+    resetGame,
+    pauseGame,
+    setChallengeStatus,
+  });
+
+  useEffect(() => {
+    handlersRef.current = {
+      startGameSequence,
+      startCountdown,
+      triggerVictory,
+      resetGame,
+      pauseGame,
+      setChallengeStatus,
+    };
+  });
+
   // --- INITIALIZATION & BROADCAST / EXTERNAL API LISTENERS ---
   useEffect(() => {
     // Check if opened as player popout (?mode=player)
@@ -444,16 +471,16 @@ export default function App() {
         if (data.action === 'SOLVE_CHALLENGE' && typeof data.challengeNumber === 'number') {
           const num = data.challengeNumber as ChallengeNumber;
           if (num >= 1 && num <= 4) {
-            setChallengeStatus(num, true);
+            handlersRef.current.setChallengeStatus(num, true);
           }
         } else if (data.action === 'WIN') {
-          triggerVictory();
+          handlersRef.current.triggerVictory();
         } else if (data.action === 'RESET') {
-          resetGame();
+          handlersRef.current.resetGame();
         } else if (data.action === 'SKIP_INTRO') {
-          startCountdown();
+          handlersRef.current.startCountdown();
         } else if (data.action === 'START') {
-          startGameSequence(false);
+          handlersRef.current.startGameSequence(false);
         }
         return;
       }
@@ -464,7 +491,7 @@ export default function App() {
         if (syncMsg.type === 'REQUEST_START_FROM_PLAYER') {
           if (!isPopoutRef.current) {
             if (gameStateRef.current === 'IDLE' || gameStateRef.current === 'PAUSED') {
-              startGameSequence(false);
+              handlersRef.current.startGameSequence(false);
             }
           }
         } else if (syncMsg.type === 'TIME_TICK' && typeof syncMsg.elapsed === 'number') {
@@ -498,13 +525,13 @@ export default function App() {
         try {
           const parsed = JSON.parse(e.newValue);
           if (parsed.action === 'SOLVE_CHALLENGE' && typeof parsed.challengeNumber === 'number') {
-            setChallengeStatus(parsed.challengeNumber as ChallengeNumber, true);
+            handlersRef.current.setChallengeStatus(parsed.challengeNumber as ChallengeNumber, true);
           } else if (parsed.action === 'WIN') {
-            triggerVictory();
+            handlersRef.current.triggerVictory();
           } else if (parsed.action === 'SKIP_INTRO') {
-            startCountdown();
+            handlersRef.current.startCountdown();
           } else if (parsed.action === 'START') {
-            startGameSequence(false);
+            handlersRef.current.startGameSequence(false);
           }
         } catch {
           // ignore
@@ -520,7 +547,7 @@ export default function App() {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [startGameSequence, startCountdown, triggerVictory, resetGame, pauseGame, setChallengeStatus]);
+  }, []);
 
   // --- KEYBOARD SHORTCUTS (ENTER, SPACE, ESCAPE) ---
   useEffect(() => {

@@ -20,6 +20,8 @@ Si se pierde conexión, las pantallas avisan y los desafíos no aceptan envíos 
 
 Se conserva el mezclador, la carga de MP3 del repositorio original y las descargas JSON/CSV. Cargar los audios en la PC del coordinador antes de iniciar. Sin archivos, se usan voz y ambiente sintetizados cuando el navegador los permite. El fin de la explicación inicia la cuenta; el coordinador también puede saltarla. Probar el sonido antes de la muestra.
 
+Se integraron las mejoras de GitHub del 29 de septiembre: ambiente continuo, reducción gradual de volumen durante las voces y correcciones del cronómetro y del estado de los desafíos. En las tres pantallas, la API sigue siendo la autoridad para el tiempo y la victoria. Todos los botones de prueba permiten detener el sonido; la prueba del ambiente dura 3,5 segundos. Pausar o desconectarse impide que una carga tardía reactive el ambiente.
+
 ## Desarrollo
 
 Usar Node.js 24 y las dependencias de `package-lock.json`.
