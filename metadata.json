@@ -1,0 +1,6 @@
+{
+  "name": "Estación de Escape Room - Control Maestro y Transmisión",
+  "description": "Sistema de control y transmisión para Escape Room con cronómetro interactivo, pantalla de jugador/proyector, autenticación de administrador, atenuación de audio y sincronización de desafíos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
