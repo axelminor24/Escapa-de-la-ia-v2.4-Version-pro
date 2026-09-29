@@ -37,7 +37,12 @@ import {
   AlertTriangle,
   RefreshCw,
   RadioTower,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
+import { EventLog } from './EventLog';
+import { eventLogService } from '../services/eventLogService';
 
 interface AdminViewProps {
   remainingStr: string;
@@ -78,9 +83,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [fileMatchCount, setFileMatchCount] = useState<number | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Tabs for Api & GitHub drawer
-  const [activeTab, setActiveTab] = useState<'NONE' | 'API' | 'GITHUB'>('NONE');
+  // Tabs for Api, GitHub & Event Log drawer
+  const [activeTab, setActiveTab] = useState<'NONE' | 'API' | 'GITHUB' | 'LOG'>('NONE');
   const [apiSnippetLang, setApiSnippetLang] = useState<'NODE' | 'PYTHON' | 'ARDUINO' | 'CURL'>('NODE');
+  const [eventCount, setEventCount] = useState<number>(eventLogService.getEvents().length);
+  const [isLogSectionExpanded, setIsLogSectionExpanded] = useState<boolean>(true);
 
   // External API Config state
   const [apiConfig, setApiConfig] = useState<ApiConfig>(externalApiService.getConfig());
@@ -99,7 +106,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
       setApiPing(ping);
       setApiError(err);
     });
-    return () => unsub();
+
+    const unsubLog = eventLogService.subscribe((events) => {
+      setEventCount(events.length);
+    });
+
+    return () => {
+      unsub();
+      unsubLog();
+    };
   }, []);
 
   const formatElapsed = (sec: number) => {
@@ -126,6 +141,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleSingleFileUpload = (trackId: string, file: File) => {
     const blobUrl = URL.createObjectURL(file);
     audioEngine.setTrackBlobUrl(trackId, blobUrl, file.name);
+    eventLogService.recordSystemEvent(
+      `Archivo Cargado: ${file.name}`,
+      `Pista "${trackId}" vinculada a archivo personalizado "${file.name}".`,
+      'Panel Admin'
+    );
     // Force re-render
     setTestingTrackId((prev) => (prev === trackId ? null : prev));
   };
@@ -134,6 +154,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const files = Array.from(fileList);
     const matched = audioEngine.registerFiles(files);
     setFileMatchCount(matched);
+    eventLogService.recordSystemEvent(
+      'Carga Masiva de Audios',
+      `Se cargaron ${files.length} archivos locales. ${matched} pistas fueron vinculadas automáticamente.`,
+      'Panel Admin'
+    );
     setTimeout(() => setFileMatchCount(null), 6000);
   };
 
@@ -141,9 +166,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
     if (testingTrackId === track.id) {
       audioEngine.stopVoice();
       setTestingTrackId(null);
+      eventLogService.recordAudioEvent(
+        track.title,
+        track.defaultName,
+        false,
+        'Prueba manual de audio cancelada/detenida por el operador.',
+        'Panel Admin'
+      );
       return;
     }
     setTestingTrackId(track.id);
+    eventLogService.recordAudioEvent(
+      track.title,
+      track.defaultName,
+      false,
+      'Prueba manual de audio iniciada por el operador desde la tabla de pistas.',
+      'Panel Admin'
+    );
     await audioEngine.testTrack(
       track,
       () => setTestingTrackId(track.id),
@@ -367,6 +406,21 @@ curl -X POST http://localhost:5000/api/action \\
             >
               <Github className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Listo para</span> GitHub
+            </button>
+
+            <button
+              onClick={() => setActiveTab(activeTab === 'LOG' ? 'NONE' : 'LOG')}
+              className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                activeTab === 'LOG'
+                  ? 'bg-purple-600 border-purple-400 text-white shadow-lg shadow-purple-950/50'
+                  : 'bg-[#181926] hover:bg-[#202233] border-[#2b2d42] text-purple-300'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Event Log</span>
+              <span className="px-1.5 py-0.5 rounded-full bg-black/60 border border-purple-400/40 text-[10px] font-mono font-bold text-purple-200">
+                {eventCount}
+              </span>
             </button>
 
             <button
@@ -684,18 +738,22 @@ curl -X POST http://localhost:5000/api/action \\
             </div>
 
             {/* Checklist */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span><strong>package-lock.json:</strong> Generado para instalación precisa en GitHub Actions.</span>
+              </div>
+              <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span><strong>deploy.yml:</strong> Workflow en <code>.github/workflows</code> tolerante y listo.</span>
+              </div>
               <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span><strong>vite.config.ts:</strong> Ruta base <code>base: './'</code> configurada.</span>
               </div>
               <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span><strong>deploy.yml:</strong> Flujo de trabajo en <code>.github/workflows</code> listo.</span>
-              </div>
-              <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span><strong>public/.nojekyll:</strong> Archivo presente para evitar fallos de rutas.</span>
+                <span><strong>public/.nojekyll:</strong> Archivo presente para lectura de assets.</span>
               </div>
             </div>
 
@@ -714,6 +772,13 @@ git push -u origin main`}
             <p className="text-[11px] text-slate-400">
               * En tu repositorio de GitHub, ve a <strong>Settings &gt; Pages</strong> y en <strong>Source</strong> selecciona <strong>GitHub Actions</strong>. En un minuto estará publicado en vivo.
             </p>
+          </div>
+        )}
+
+        {/* Drawer: Event Log (Full View) */}
+        {activeTab === 'LOG' && (
+          <div className="animate-fadeIn">
+            <EventLog className="border-2 border-purple-500/60 shadow-purple-950/40" />
           </div>
         )}
 
@@ -971,6 +1036,40 @@ git push -u origin main`}
               );
             })}
           </div>
+        </div>
+
+        {/* Visual Event Log Section */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-purple-400" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-white font-display">
+                Historial de Eventos en Tiempo Real (Event Log)
+              </h2>
+              <span className="px-2 py-0.5 rounded-full bg-purple-950/80 border border-purple-800 text-[10px] font-mono text-purple-300 font-bold">
+                {eventCount} {eventCount === 1 ? 'evento' : 'eventos'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveTab(activeTab === 'LOG' ? 'NONE' : 'LOG')}
+                className="text-xs text-purple-300 hover:text-purple-200 font-mono flex items-center gap-1 cursor-pointer bg-purple-950/50 hover:bg-purple-900/60 border border-purple-700/50 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                <span>{activeTab === 'LOG' ? 'Cerrar pestaña completa' : 'Abrir pestaña completa'}</span>
+              </button>
+
+              <button
+                onClick={() => setIsLogSectionExpanded(!isLogSectionExpanded)}
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 font-mono cursor-pointer bg-[#141624] hover:bg-[#1c1f32] border border-[#2b3046] px-2.5 py-1 rounded-lg transition-colors"
+              >
+                <span>{isLogSectionExpanded ? 'Plegar' : 'Desplegar'}</span>
+                {isLogSectionExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {isLogSectionExpanded && <EventLog isCompact={true} />}
         </div>
 
         {/* Audio Volume Mixer */}

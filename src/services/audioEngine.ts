@@ -1,4 +1,5 @@
 import { AudioTrackConfig } from '../types';
+import { eventLogService } from './eventLogService';
 
 export const INITIAL_TRACKS: AudioTrackConfig[] = [
   {
@@ -373,6 +374,9 @@ class AudioEngine {
     const sessionId = ++this.voiceSessionId;
     this.currentVoiceTrackId = track.id;
 
+    // Log audio event
+    eventLogService.recordAudioEvent(track.title, track.defaultName, false);
+
     // 2. Duck ambient sound to 15%
     this.applyDucking(true);
 
@@ -444,6 +448,14 @@ class AudioEngine {
 
     // 2. Duck ambient to 10%
     this.applyDucking(true);
+
+    // Log priority interrupting audio event
+    eventLogService.recordAudioEvent(
+      track.title,
+      track.defaultName,
+      true,
+      'Audio de desafío superpuesto sobre la emisión. Pista anterior en pausa.'
+    );
 
     const src = this.getTrackSrc(track);
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameStatus, ChallengesState, ChallengeNumber, SyncMessage } from './types';
 import { audioEngine, INITIAL_TRACKS } from './services/audioEngine';
 import { externalApiService } from './services/externalApiService';
+import { eventLogService } from './services/eventLogService';
 import { RoleSelector } from './components/RoleSelector';
 import { PlayerView } from './components/PlayerView';
 import { AdminView } from './components/AdminView';
@@ -77,6 +78,15 @@ export default function App() {
 
     setGameState('VICTORY');
 
+    // Record Event Log
+    eventLogService.recordStateEvent(
+      'VICTORY',
+      '¡Victoria Total - Misión Cumplida!',
+      'Los 4 desafíos fueron completados con éxito dentro del tiempo límite.',
+      'success',
+      'Sistema'
+    );
+
     // 1. Immediately silence ambient and cut off any voice playing
     audioEngine.stopAmbient();
     audioEngine.stopVoice();
@@ -115,6 +125,9 @@ export default function App() {
         type: 'CHALLENGE_UPDATE',
         challenges: updated,
       });
+
+      // Record Event Log
+      eventLogService.recordChallengeEvent(num, isSolved, solvedCount, 'Control Maestro');
 
       externalApiService.sendWebhookUpdate({
         action: 'CHALLENGE_UPDATE',
@@ -172,12 +185,22 @@ export default function App() {
     // 3. Transition to RUNNING and record exact start timestamp
     setGameState('RUNNING');
     startTimeRef.current = Date.now();
+    eventLogService.recordStateEvent(
+      'RUNNING',
+      'Cuenta Regresiva Iniciada',
+      'El cronómetro principal de 15:00 ha comenzado a correr hacia atrás.',
+      'info',
+      'Sistema'
+    );
 
     const runTick = () => {
       if (startTimeRef.current === null) return;
       const now = Date.now();
       const deltaSec = Math.floor((now - startTimeRef.current) / 1000);
       const nextElapsed = Math.min(TOTAL_GAME_SECONDS, elapsedOffsetRef.current + deltaSec);
+
+      // Keep eventLogService time context synchronized
+      eventLogService.updateTimeContext(getRemainingTimeStr(nextElapsed), nextElapsed);
 
       // Only process when second counter actually advances
       if (nextElapsed === elapsedSecRef.current && elapsedSecRef.current > 0) return;
@@ -198,6 +221,14 @@ export default function App() {
         if (targetTrack) {
           audioEngine.playVoiceTrack(targetTrack);
         }
+
+        eventLogService.recordTimelineEvent(
+          'Hito: Evaluación Minuto 5',
+          solvedCount >= 1
+            ? `Avance positivo (${solvedCount}/4 desafíos completados). Audio condicional activado.`
+            : 'Alerta de retraso (0 desafíos completados a los 5 minutos). Audio de presión activado.',
+          solvedCount >= 1 ? 'info' : 'warning'
+        );
       }
 
       // Otras pistas programadas no condicionales
@@ -211,6 +242,12 @@ export default function App() {
         ) {
           firedTracksRef.current.add(track.id);
           audioEngine.playVoiceTrack(track);
+
+          if (track.id === 'halfway') {
+            eventLogService.recordTimelineEvent('Hito: Mitad del Tiempo', 'Han transcurrido 07:30 (quedan 07:30 restantes).', 'info');
+          } else if (track.id === 'three_min') {
+            eventLogService.recordTimelineEvent('Hito: Zona Crítica (Últimos 3 Minutos)', 'Alerta de presión crítica activada. Quedan 3 minutos.', 'alert');
+          }
         }
       });
 
@@ -246,6 +283,14 @@ export default function App() {
           audioEngine.playVoiceTrack(gameOverTrack);
         }
 
+        eventLogService.recordStateEvent(
+          'GAMEOVER',
+          'Tiempo Agotado - Fin de la Misión',
+          'Los 15 minutos han expirado sin resolver los 4 desafíos.',
+          'danger',
+          'Sistema'
+        );
+
         broadcast({
           type: 'GAME_OVER',
           gameState: 'GAMEOVER',
@@ -274,6 +319,13 @@ export default function App() {
 
     // If skipIntro requested or already in INTRO, immediately begin countdown!
     if (skipIntro || gameStateRef.current === 'INTRO') {
+      eventLogService.recordStateEvent(
+        'RUNNING',
+        'Intro Saltada - Inicio Inmediato',
+        'Se omitió la explicación previa para comenzar la cuenta regresiva de 15:00 directamente.',
+        'warning',
+        'Operador'
+      );
       startCountdown();
       return;
     }
@@ -288,6 +340,14 @@ export default function App() {
     }
 
     setGameState('INTRO');
+
+    eventLogService.recordStateEvent(
+      'INTRO',
+      'Juego Iniciado con Explicación',
+      'Reproducción de bienvenida y reglas de los 4 desafíos.',
+      'info',
+      'Operador'
+    );
 
     // 1. Start continuous ambient background loop
     audioEngine.startAmbient();
@@ -337,6 +397,14 @@ export default function App() {
     audioEngine.pauseAmbient();
     audioEngine.stopVoice();
 
+    eventLogService.recordStateEvent(
+      'PAUSED',
+      'Partida Pausada',
+      `Cronómetro congelado a los ${remainingStr} restantes.`,
+      'warning',
+      'Operador'
+    );
+
     broadcast({
       type: 'PAUSE',
       gameState: 'PAUSED',
@@ -346,7 +414,7 @@ export default function App() {
       action: 'PAUSE',
       gameState: 'PAUSED',
     });
-  }, [broadcast]);
+  }, [broadcast, remainingStr]);
 
   // --- RESET GAME ---
   const resetGame = useCallback(() => {
@@ -370,6 +438,14 @@ export default function App() {
 
     audioEngine.stopAmbient();
     audioEngine.stopVoice();
+
+    eventLogService.recordStateEvent(
+      'IDLE',
+      'Partida Reiniciada',
+      'Cronómetro restablecido a 15:00, desafíos pendientes y audios silenciados.',
+      'alert',
+      'Operador'
+    );
 
     broadcast({
       type: 'RESET',
@@ -485,6 +561,16 @@ export default function App() {
 
     // Listen for External API service actions
     const unsubApi = externalApiService.onAction((data) => {
+      if (data.action) {
+        eventLogService.recordApiEvent(
+          data.action,
+          `Comando externo recibido: ${data.action}${
+            data.challengeNumber ? ` para desafío #${data.challengeNumber}` : ''
+          }`,
+          'API Externa / Red'
+        );
+      }
+
       if (data.action === 'START') {
         startGameSequence(data.skipIntro ?? false);
       } else if (data.action === 'SKIP_INTRO') {

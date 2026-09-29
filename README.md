@@ -94,6 +94,27 @@ La emisora buscará automáticamente los archivos MP3 con los siguientes nombres
 
 ---
 
+## 📜 Registro de Eventos en Tiempo Real (Event Log)
+
+El panel de administración cuenta con una sección visual auditada de **Event Log** que registra con marcas de tiempo precisas todos los acontecimientos de la partida:
+- **Hora real (Wall clock)**: e.g. `21:05:42` (hora del sistema).
+- **Tiempo de juego**: Cuenta regresiva restante (e.g. `⏱️ 14:15`) y segundos transcurridos (`+00:45`).
+- **Categorías con códigos de color e iconos:**
+  - 🎯 **Desafíos (CHALLENGE):** Registro instantáneo cuando se resuelve o desmarca cada desafío (1 a 4).
+  - ⏯️ **Estado (STATE):** Inicio con intro, salto de intro, cuenta regresiva, pausas, reanudaciones, reinicios, victoria y derrota.
+  - 🔊 **Audios (AUDIO):** Activación de ambiente, pistas narradas, superposiciones prioritarias de desafío con interrupción y reanudación automática, o pruebas manuales.
+  - ⏱️ **Hitos (TIMELINE):** Evaluación del minuto 5 (con avance / sin avance), alerta de mitad de tiempo (07:30) y últimos 3 minutos (12:00).
+  - 🌐 **API / Red (API):** Comandos y señales entrantes desde backend, hardware ESP32/Arduino o webhooks.
+- **Herramientas del Event Log:**
+  - Filtros instantáneos por categoría (`Todos`, `Desafíos`, `Estado`, `Audios`, `Hitos`, `API`).
+  - Buscador por texto en tiempo real.
+  - Modo auto-scroll para seguir en vivo los nuevos eventos.
+  - Botón **Copiar Historial** al portapapeles.
+  - Botón **Exportar** en formatos `.txt` o `.json` para debriefing o reportes finales.
+  - Visualización integrada en el panel principal (plegable) y opción de pestaña expandida a pantalla completa.
+
+---
+
 ## 🌐 Conexión con otra API Externa
 
 Puedes vincular cualquier backend, juego secundario o hardware (Arduino/Raspberry Pi/ESP32) con esta emisora de **3 formas**:
@@ -176,3 +197,27 @@ localStorage.setItem(
   JSON.stringify({ action: 'SOLVE_CHALLENGE', challengeNumber: 1 })
 );
 ```
+
+---
+
+## 🚀 Despliegue en GitHub Pages y Solución de Errores
+
+### ¿Por qué ocurrió el error `Dependencies lock file is not found`?
+GitHub Actions (`actions/setup-node`) buscaba de forma estricta un archivo de bloqueo (`package-lock.json`, `npm-shrinkwrap.json` o `yarn.lock`) debido a la bandera de caché de npm. Si dicho archivo no estaba en el repositorio o había conflictos entre versiones de dependencias (`vite` vs `esbuild`), la acción fallaba antes de instalar.
+
+### Correcciones Aplicadas:
+1. **`package-lock.json` generado:** Se sincronizó la versión de `esbuild` (`^0.28.0`) con la requerida por `vite` y se generó un `package-lock.json` limpio y validado.
+2. **Workflow resiliente (`.github/workflows/deploy.yml`):** Se eliminó la dependencia estricta de caché que rompía la ejecución y se agregó un paso de instalación tolerante: si existe `package-lock.json` usa `npm ci || npm install --legacy-peer-deps`, y si no existe realiza `npm install --legacy-peer-deps`.
+3. **Compatibilidad GitHub Pages:** Se mantiene `base: './'` en `vite.config.ts` y `public/.nojekyll`.
+
+### Para subir los cambios a tu GitHub:
+```bash
+git add .
+git commit -m "Fix GitHub Actions lockfile and deploy workflow"
+git push origin main
+```
+En tu repositorio en GitHub:
+1. Ve a **Settings** > **Pages**.
+2. En **Build and deployment > Source**, asegúrate de tener seleccionado **GitHub Actions**.
+3. El despliegue se ejecutará automáticamente en la pestaña **Actions** con éxito.
+

@@ -48,3 +48,21 @@ export interface SyncMessage {
   ambientVolume?: number;
   voiceVolume?: number;
 }
+
+export type GameEventCategory = 'CHALLENGE' | 'STATE' | 'AUDIO' | 'TIMELINE' | 'API' | 'SYSTEM';
+
+export type GameEventSeverity = 'info' | 'success' | 'warning' | 'alert' | 'danger';
+
+export interface GameEvent {
+  id: string;
+  timestamp: number;
+  wallTime: string;
+  gameTime: string;
+  elapsedSec: number;
+  category: GameEventCategory;
+  severity: GameEventSeverity;
+  title: string;
+  detail?: string;
+  source?: string;
+  metadata?: Record<string, any>;
+}
