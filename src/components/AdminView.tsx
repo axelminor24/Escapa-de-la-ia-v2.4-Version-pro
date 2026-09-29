@@ -536,17 +536,36 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Quick Export Buttons */}
+              <button
+                onClick={() => handleDownloadLog('json')}
+                title="Descargar registro de eventos completo en formato JSON para análisis posterior"
+                className="px-2.5 py-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-700/60 text-indigo-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <FileJson className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Descargar JSON</span>
+              </button>
+
+              <button
+                onClick={() => handleDownloadLog('csv')}
+                title="Descargar registro de eventos en formato CSV para abrir en Excel o Google Sheets"
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-700/60 text-emerald-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Descargar CSV</span>
+              </button>
+
               <button
                 onClick={() => setActiveTab(activeTab === 'LOG' ? 'NONE' : 'LOG')}
-                className="text-xs text-purple-300 hover:text-purple-200 font-mono flex items-center gap-1 cursor-pointer bg-purple-950/50 hover:bg-purple-900/60 border border-purple-700/50 px-2.5 py-1 rounded-lg transition-colors"
+                className="text-xs text-purple-300 hover:text-purple-200 font-mono flex items-center gap-1 cursor-pointer bg-purple-950/50 hover:bg-purple-900/60 border border-purple-700/50 px-2.5 py-1.5 rounded-lg transition-colors"
               >
-                <span>{activeTab === 'LOG' ? 'Cerrar pestaña completa' : 'Abrir pestaña completa'}</span>
+                <span>{activeTab === 'LOG' ? 'Cerrar pestaña' : 'Pestaña completa'}</span>
               </button>
 
               <button
                 onClick={() => setIsLogSectionExpanded(!isLogSectionExpanded)}
-                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 font-mono cursor-pointer bg-[#141624] hover:bg-[#1c1f32] border border-[#2b3046] px-2.5 py-1 rounded-lg transition-colors"
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1 font-mono cursor-pointer bg-[#141624] hover:bg-[#1c1f32] border border-[#2b3046] px-2.5 py-1.5 rounded-lg transition-colors"
               >
                 <span>{isLogSectionExpanded ? 'Plegar' : 'Desplegar'}</span>
                 {isLogSectionExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}

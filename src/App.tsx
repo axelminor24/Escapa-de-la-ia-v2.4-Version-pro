@@ -97,17 +97,10 @@ export default function App() {
       audioEngine.playVoiceTrack(victoryTrack);
     }
 
-    // 3. Broadcast to all screens and external API
+    // 3. Broadcast to all screens
     broadcast({
       type: 'VICTORY',
       gameState: 'VICTORY',
-      challenges: { 1: true, 2: true, 3: true, 4: true },
-    });
-
-    externalApiService.sendWebhookUpdate({
-      action: 'VICTORY',
-      gameState: 'VICTORY',
-      elapsedSec: elapsedSecRef.current,
       challenges: { 1: true, 2: true, 3: true, 4: true },
     });
   }, [broadcast]);
@@ -251,16 +244,6 @@ export default function App() {
         isCritical: remain <= 180 && remain > 0,
       });
 
-      // Outbound external API webhook
-      externalApiService.sendWebhookUpdate({
-        action: 'TIME_TICK',
-        elapsed: nextElapsed,
-        remaining: remain,
-        remainingStr: getRemainingTimeStr(nextElapsed),
-        gameState: 'RUNNING',
-        challenges: challengesRef.current,
-      });
-
       // Fin del tiempo
       if (remain <= 0) {
         if (timerIntervalRef.current) {
@@ -285,11 +268,6 @@ export default function App() {
 
         broadcast({
           type: 'GAME_OVER',
-          gameState: 'GAMEOVER',
-        });
-
-        externalApiService.sendWebhookUpdate({
-          action: 'GAME_OVER',
           gameState: 'GAMEOVER',
         });
       }
@@ -344,22 +322,13 @@ export default function App() {
     // 1. Start continuous ambient background loop
     audioEngine.startAmbient();
 
-    // Safety watchdog: guarantees countdown begins even if audio file is missing or browser delays
-    introSafetyTimerRef.current = window.setTimeout(() => {
-      startCountdown();
-    }, 12000);
-
     // 2. Play intro explanation audio
     const startTrack = INITIAL_TRACKS.find((t) => t.id === 'start');
     if (startTrack) {
       firedTracksRef.current.add(startTrack.id);
 
       audioEngine.playVoiceTrack(startTrack, () => {
-        if (introSafetyTimerRef.current !== null) {
-          clearTimeout(introSafetyTimerRef.current);
-          introSafetyTimerRef.current = null;
-        }
-        // 3. EXACT MOMENT INTRO AUDIO ENDS: COUNTDOWN STARTS!
+        // 3. EXACT MOMENT INTRO AUDIO FINISHES: COUNTDOWN STARTS NATURALLY!
         startCountdown();
       });
     } else {
@@ -401,11 +370,6 @@ export default function App() {
       type: 'PAUSE',
       gameState: 'PAUSED',
     });
-
-    externalApiService.sendWebhookUpdate({
-      action: 'PAUSE',
-      gameState: 'PAUSED',
-    });
   }, [broadcast, remainingStr]);
 
   // --- RESET GAME ---
@@ -441,13 +405,6 @@ export default function App() {
 
     broadcast({
       type: 'RESET',
-      gameState: 'IDLE',
-      elapsed: 0,
-      challenges: { 1: false, 2: false, 3: false, 4: false },
-    });
-
-    externalApiService.sendWebhookUpdate({
-      action: 'RESET',
       gameState: 'IDLE',
       elapsed: 0,
       challenges: { 1: false, 2: false, 3: false, 4: false },
@@ -499,9 +456,7 @@ export default function App() {
         const syncMsg = data as SyncMessage;
         if (syncMsg.type === 'REQUEST_START_FROM_PLAYER') {
           if (!isPopoutRef.current) {
-            if (gameStateRef.current === 'INTRO') {
-              startCountdown();
-            } else {
+            if (gameStateRef.current === 'IDLE' || gameStateRef.current === 'PAUSED') {
               startGameSequence(false);
             }
           }
@@ -580,8 +535,10 @@ export default function App() {
         }
 
         if (gameStateRef.current === 'INTRO') {
-          // Immediately skip intro and start countdown!
-          startGameSequence(true);
+          // Only Game Master in ADMIN view can skip intro
+          if (currentView === 'ADMIN') {
+            startGameSequence(true);
+          }
         } else if (gameStateRef.current === 'IDLE' || gameStateRef.current === 'PAUSED') {
           startGameSequence(false);
         }

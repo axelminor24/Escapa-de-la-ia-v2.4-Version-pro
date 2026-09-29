@@ -256,7 +256,7 @@ export const EventLog: React.FC<EventLogProps> = ({ className = '', isCompact = 
               { id: 'STATE', label: 'Estado', icon: Play },
               { id: 'AUDIO', label: 'Audios', icon: Volume2 },
               { id: 'TIMELINE', label: 'Hitos', icon: Clock },
-              { id: 'API', label: 'API / Red', icon: Globe },
+              { id: 'SYSTEM', label: 'Sistema', icon: Radio },
             ] as const
           ).map((cat) => {
             const isSelected = selectedCategory === cat.id;

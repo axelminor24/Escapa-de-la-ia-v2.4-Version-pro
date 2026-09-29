@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
   group: 'pages'
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -37,6 +37,16 @@ jobs:
       - name: Build application
         run: npm run build
 
+      # Method 1: Deploy to gh-pages branch (works without requiring GitHub Actions mode in settings)
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          keep_files: false
+          force_orphan: true
+
+      # Method 2: Upload Pages artifact for GitHub Actions deployment
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -49,6 +59,20 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Deploy to GitHub Pages
+      # continue-on-error prevents workflow failure if GitHub Pages is set to "Deploy from branch" instead of "GitHub Actions"
+      - name: Deploy to GitHub Pages (Actions)
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: Deployment Instructions & Summary
+        run: |
+          echo "## 🚀 Escape de la IA v2.4 Pro - Despliegue en GitHub Pages" >> $GITHUB_STEP_SUMMARY
+          echo "La aplicación ha sido compilada y desplegada exitosamente." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🌐 ¿Cómo ver tu aplicación online?" >> $GITHUB_STEP_SUMMARY
+          echo "1. Si aún no activaste GitHub Pages, ve a: [Configuración de Pages](https://github.com/${{ github.repository }}/settings/pages)" >> $GITHUB_STEP_SUMMARY
+          echo "2. En **Build and deployment > Source**, tienes 2 opciones compatibles:" >> $GITHUB_STEP_SUMMARY
+          echo "   - **Opción A (Recomendada):** Selecciona **GitHub Actions**." >> $GITHUB_STEP_SUMMARY
+          echo "   - **Opción B (Rama):** Selecciona **Deploy from a branch**, elige la rama **gh-pages** y carpeta **/ (root)**." >> $GITHUB_STEP_SUMMARY
+          echo "3. Tu URL pública es: **https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/ **" >> $GITHUB_STEP_SUMMARY

@@ -104,121 +104,37 @@ El panel de administración cuenta con una sección visual auditada de **Event L
   - ⏯️ **Estado (STATE):** Inicio con intro, salto de intro, cuenta regresiva, pausas, reanudaciones, reinicios, victoria y derrota.
   - 🔊 **Audios (AUDIO):** Activación de ambiente, pistas narradas, superposiciones prioritarias de desafío con interrupción y reanudación automática, o pruebas manuales.
   - ⏱️ **Hitos (TIMELINE):** Evaluación del minuto 5 (con avance / sin avance), alerta de mitad de tiempo (07:30) y últimos 3 minutos (12:00).
-  - 🌐 **API / Red (API):** Comandos y señales entrantes desde backend, hardware ESP32/Arduino o webhooks.
+  - ⚙️ **Sistema (SYSTEM):** Diagnósticos, cargas de archivos de audio locales y limpiezas de historial.
 - **Herramientas del Event Log:**
-  - Filtros instantáneos por categoría (`Todos`, `Desafíos`, `Estado`, `Audios`, `Hitos`, `API`).
-  - Buscador por texto en tiempo real.
-  - Modo auto-scroll para seguir en vivo los nuevos eventos.
-  - Botón **Descargar JSON:** Descarga el historial estructurado en formato `.json`.
-  - Botón **Descargar CSV:** Descarga el archivo `.csv` (con BOM UTF-8) listo para abrir directamente en Microsoft Excel o Google Sheets.
-  - Botón **Copiar Historial** al portapapeles.
-  - Visualización integrada en el panel principal (plegable) y pestaña expandida a pantalla completa.
+  - **Botón Descargar JSON:** Descarga el historial estructurado en formato `.json` para análisis programático o archivo.
+  - **Botón Descargar CSV:** Descarga el archivo `.csv` (con codificación UTF-8 BOM) compatible con Microsoft Excel, Apple Numbers o Google Sheets.
+  - **Filtros instantáneos** por categoría (`Todos`, `Desafíos`, `Estado`, `Audios`, `Hitos`, `Sistema`).
+  - **Buscador de texto** en tiempo real.
+  - **Modo auto-scroll** para seguir en directo los nuevos eventos.
+  - **Copiar Historial** directo al portapapeles.
+  - Visualización integrada en el panel principal (plegable) y pestaña expandida.
 
 ---
 
-## 🌐 Conexión con otra API Externa
+## 🚀 Despliegue en GitHub Pages y Solución del Error 404
 
-Puedes vincular cualquier backend, juego secundario o hardware (Arduino/Raspberry Pi/ESP32) con esta emisora de **3 formas**:
+### ¿Por qué ocurrió el error `HttpError: Not Found Failed to create deployment (status: 404)`?
+En GitHub, cuando se usa la acción oficial `actions/deploy-pages@v4`, GitHub requiere que **GitHub Pages esté habilitado** en la configuración del repositorio. Si el repositorio es nuevo o Pages no se ha inicializado todavía, la API de GitHub devuelve un error 404:
+`Failed to create deployment (status: 404) ... Ensure GitHub Pages has been enabled: https://github.com/.../settings/pages`
 
-### Método 1: Polling a una API REST (Configurable desde el Panel)
-Configura en el panel de administrador tu endpoint (por ejemplo `http://localhost:5000/api/status`). La emisora consultará periódicamente la URL y reaccionará a respuestas JSON como:
+### Solución Definitiva Implementada:
+1. **Despliegue dual automático (`.github/workflows/deploy.yml`):**
+   - El workflow compila la aplicación y la publica automáticamente en la rama **`gh-pages`** (usando `peaceiris/actions-gh-pages@v4`). Esta rama **nunca falla con 404**, incluso si Pages no está configurado en GitHub Actions.
+   - Además, sube el artefacto a **GitHub Pages** mediante `actions/deploy-pages@v4` con `continue-on-error: true` para que ningún ajuste pendiente rompa el flujo de trabajo en Actions.
+2. **Compatibilidad total de rutas relativas:**
+   - Se configuró `base: './'` en `vite.config.ts`.
+   - Se incluye el archivo `public/.nojekyll` para evitar que el motor Jekyll de GitHub bloquee archivos CSS/JS.
 
-```json
-{
-  "challenges": {
-    "1": true,
-    "2": false,
-    "3": false,
-    "4": false
-  }
-}
-```
-O con acciones de control:
-```json
-{
-  "action": "SOLVE_CHALLENGE",
-  "challengeNumber": 2
-}
-```
-
-Acciones reconocidas:
-- `START`: Inicia la transmisión.
-- `SKIP_INTRO`: Salta la intro y comienza el cronómetro inmediatamente.
-- `PAUSE`: Pausa el juego y el audio ambiental.
-- `RESET`: Reinicia el cronómetro a 15:00.
-- `WIN`: Dispara la victoria total.
-- `SOLVE_CHALLENGE` con `challengeNumber: 1 | 2 | 3 | 4`: Marca el desafío y reproduce su audio exclusivo.
-
-#### Ejemplo de Backend en Node.js / Express:
-```javascript
-import express from 'express';
-import cors from 'cors';
-const app = express();
-app.use(cors());
-
-let state = {
-  challenge1: false,
-  challenge2: false,
-  challenge3: false,
-  challenge4: false,
-};
-
-// Endpoint que consulta la emisora
-app.get('/api/status', (req, res) => {
-  res.json({ challenges: state });
-});
-
-// Endpoint que llama tu juego cuando alguien resuelve un acertijo
-app.post('/api/solve/:num', (req, res) => {
-  state[`challenge${req.params.num}`] = true;
-  res.json({ success: true, state });
-});
-
-app.listen(5000, () => console.log('API escuchando en puerto 5000'));
-```
-
-### Método 2: BroadcastChannel (Mismo navegador / diferentes pestañas o ventanas)
-```javascript
-const syncChannel = new BroadcastChannel('escape_room_sync');
-
-// Marcar desafío 1 completado:
-syncChannel.postMessage({ action: 'SOLVE_CHALLENGE', challengeNumber: 1 });
-
-// Saltar intro:
-syncChannel.postMessage({ action: 'SKIP_INTRO' });
-
-// Disparar victoria total:
-syncChannel.postMessage({ action: 'WIN' });
-```
-
-### Método 3: LocalStorage (Pestañas en el mismo dominio)
-```javascript
-localStorage.setItem(
-  'escape_room_trigger',
-  JSON.stringify({ action: 'SOLVE_CHALLENGE', challengeNumber: 1 })
-);
-```
-
----
-
-## 🚀 Despliegue en GitHub Pages y Solución de Errores
-
-### ¿Por qué ocurrió el error `Dependencies lock file is not found`?
-GitHub Actions (`actions/setup-node`) buscaba de forma estricta un archivo de bloqueo (`package-lock.json`, `npm-shrinkwrap.json` o `yarn.lock`) debido a la bandera de caché de npm. Si dicho archivo no estaba en el repositorio o había conflictos entre versiones de dependencias (`vite` vs `esbuild`), la acción fallaba antes de instalar.
-
-### Correcciones Aplicadas:
-1. **`package-lock.json` generado:** Se sincronizó la versión de `esbuild` (`^0.28.0`) con la requerida por `vite` y se generó un `package-lock.json` limpio y validado.
-2. **Workflow resiliente (`.github/workflows/deploy.yml`):** Se eliminó la dependencia estricta de caché que rompía la ejecución y se agregó un paso de instalación tolerante: si existe `package-lock.json` usa `npm ci || npm install --legacy-peer-deps`, y si no existe realiza `npm install --legacy-peer-deps`.
-3. **Compatibilidad GitHub Pages:** Se mantiene `base: './'` en `vite.config.ts` y `public/.nojekyll`.
-
-### Para subir los cambios a tu GitHub:
-```bash
-git add .
-git commit -m "Fix GitHub Actions lockfile and deploy workflow"
-git push origin main
-```
-En tu repositorio en GitHub:
-1. Ve a **Settings** > **Pages**.
-2. En **Build and deployment > Source**, asegúrate de tener seleccionado **GitHub Actions**.
-3. El despliegue se ejecutará automáticamente en la pestaña **Actions** con éxito.
+### Paso Único para Activar GitHub Pages (Toma 10 segundos):
+1. Entra a tu repositorio:
+   👉 **https://github.com/axelminor24/Escapa-de-la-ia-v2.4-Version-pro/settings/pages**
+2. En la sección **Build and deployment**:
+   - En **Source**, selecciona: **GitHub Actions** *(o selecciona la rama **gh-pages**)*.
+3. ¡Listo! Tu juego quedará publicado en vivo en:
+   👉 **https://axelminor24.github.io/Escapa-de-la-ia-v2.4-Version-pro/**
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { GameStatus, ChallengesState } from '../types';
-import { CheckCircle2, Lock, FastForward } from 'lucide-react';
+import { CheckCircle2, Lock } from 'lucide-react';
 import { ErrorMatrixRain } from './ErrorMatrixRain';
 
 interface PlayerViewProps {
@@ -104,22 +104,6 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
         >
           {statusMessage}
         </div>
-
-        {/* Skip Intro Banner button when in INTRO */}
-        {isIntro && (
-          <div className="pt-2 animate-bounce">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onTriggerStart(true);
-              }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-amber-500/25 hover:bg-amber-500/40 border-2 border-amber-400 text-amber-200 text-xs sm:text-sm font-bold tracking-wider uppercase cursor-pointer shadow-[0_0_25px_rgba(245,158,11,0.4)] transition-all hover:scale-105"
-            >
-              <FastForward className="w-4 h-4 fill-amber-300" />
-              <span>Clic o presiona [Enter/Espacio] para saltar intro e iniciar reloj ya</span>
-            </button>
-          </div>
-        )}
 
         {/* 4 Challenge Indicators */}
         <div className="pt-6 sm:pt-10 flex flex-wrap items-center justify-center gap-3 sm:gap-6 w-full">
