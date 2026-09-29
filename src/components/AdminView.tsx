@@ -7,11 +7,6 @@ import {
 } from '../types';
 import { audioEngine, INITIAL_TRACKS } from '../services/audioEngine';
 import {
-  externalApiService,
-  ApiConnectionStatus,
-  ApiConfig,
-} from '../services/externalApiService';
-import {
   Play,
   Pause,
   RotateCcw,
@@ -22,24 +17,18 @@ import {
   VolumeX,
   Upload,
   CheckCircle2,
-  Code2,
-  Copy,
   Check,
+  Zap,
   Music,
   Eye,
   FastForward,
-  Globe,
-  Wifi,
-  WifiOff,
-  Terminal,
-  Zap,
-  Github,
-  AlertTriangle,
-  RefreshCw,
   RadioTower,
   History,
   ChevronDown,
   ChevronUp,
+  FileJson,
+  FileSpreadsheet,
+  Download,
 } from 'lucide-react';
 import { EventLog } from './EventLog';
 import { eventLogService } from '../services/eventLogService';
@@ -78,41 +67,46 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [ambientVol, setAmbientVol] = useState(audioEngine.getAmbientVolume());
   const [voiceVol, setVoiceVol] = useState(audioEngine.getVoiceVolume());
   const [testingTrackId, setTestingTrackId] = useState<string | null>(null);
-  const [copiedSnippet, setCopiedSnippet] = useState(false);
-  const [copiedGit, setCopiedGit] = useState(false);
   const [fileMatchCount, setFileMatchCount] = useState<number | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Tabs for Api, GitHub & Event Log drawer
-  const [activeTab, setActiveTab] = useState<'NONE' | 'API' | 'GITHUB' | 'LOG'>('NONE');
-  const [apiSnippetLang, setApiSnippetLang] = useState<'NODE' | 'PYTHON' | 'ARDUINO' | 'CURL'>('NODE');
+  // Tabs for Event Log drawer
+  const [activeTab, setActiveTab] = useState<'NONE' | 'LOG'>('NONE');
   const [eventCount, setEventCount] = useState<number>(eventLogService.getEvents().length);
   const [isLogSectionExpanded, setIsLogSectionExpanded] = useState<boolean>(true);
 
-  // External API Config state
-  const [apiConfig, setApiConfig] = useState<ApiConfig>(externalApiService.getConfig());
-  const [apiStatus, setApiStatus] = useState<ApiConnectionStatus>(externalApiService.getStatus());
-  const [apiPing, setApiPing] = useState<number | null>(externalApiService.getLastPing());
-  const [apiError, setApiError] = useState<string | null>(externalApiService.getLastError());
-  const [isTestingApi, setIsTestingApi] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  // Download Event Log helper for AdminView
+  const handleDownloadLog = (format: 'json' | 'csv') => {
+    let content = '';
+    let mime = 'text/plain';
+    if (format === 'json') {
+      content = eventLogService.exportAsJson();
+      mime = 'application/json';
+    } else {
+      content = eventLogService.exportAsCsv();
+      mime = 'text/csv;charset=utf-8;';
+    }
+
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `escape-room-event-log-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // Hidden file input refs
   const bulkInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const unsub = externalApiService.onStatusChange((status, ping, err) => {
-      setApiStatus(status);
-      setApiPing(ping);
-      setApiError(err);
-    });
-
     const unsubLog = eventLogService.subscribe((events) => {
       setEventCount(events.length);
     });
 
     return () => {
-      unsub();
       unsubLog();
     };
   }, []);
@@ -190,174 +184,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
     );
   };
 
-  // External API Handlers
-  const handleSaveApiConfig = () => {
-    externalApiService.saveConfig(apiConfig);
-    setTestResult({ ok: true, msg: 'Configuración guardada y servicios reiniciados.' });
-    setTimeout(() => setTestResult(null), 4000);
-  };
-
-  const handleTestApiPing = async () => {
-    if (!apiConfig.httpUrl) {
-      setTestResult({ ok: false, msg: 'Ingresa una URL HTTP válida antes de probar.' });
-      return;
-    }
-    setIsTestingApi(true);
-    setTestResult(null);
-    const res = await externalApiService.testConnection(apiConfig.httpUrl, apiConfig.apiKey);
-    setIsTestingApi(false);
-    if (res.ok) {
-      setTestResult({
-        ok: true,
-        msg: `¡Conexión exitosa! Latencia: ${res.latencyMs}ms. Respuesta: ${JSON.stringify(res.data).slice(0, 80)}`,
-      });
-    } else {
-      setTestResult({
-        ok: false,
-        msg: `Fallo de conexión: ${res.error || 'No se pudo contactar la API'}`,
-      });
-    }
-  };
-
-  // Simulate incoming actions from API directly
-  const simulateApiAction = (action: string, param?: number) => {
-    if (action === 'SOLVE_CHALLENGE' && param) {
-      onToggleChallenge(param as ChallengeNumber);
-    } else if (action === 'WIN') {
-      onVictory();
-    } else if (action === 'RESET') {
-      onReset();
-    } else if (action === 'SKIP_INTRO') {
-      onStart(true);
-    }
-  };
-
-  const copySnippet = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSnippet(true);
-    setTimeout(() => setCopiedSnippet(false), 2500);
-  };
-
-  const copyGitCommands = () => {
-    const cmd = `git init\ngit add .\ngit commit -m "Deploy Escape Room Station"\ngit branch -M main\ngit remote add origin https://github.com/TU_USUARIO/TU_REPOSITORIO.git\ngit push -u origin main`;
-    navigator.clipboard.writeText(cmd);
-    setCopiedGit(true);
-    setTimeout(() => setCopiedGit(false), 2500);
-  };
-
-  const getCodeSnippet = () => {
-    if (apiSnippetLang === 'NODE') {
-      return `// Backend Node.js / Express para tu Escape Room
-import express from 'express';
-import cors from 'cors';
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-let state = {
-  challenge1: false,
-  challenge2: false,
-  challenge3: false,
-  challenge4: false,
-};
-
-// 1. Endpoint que consulta la emisora automáticamente:
-app.get('/api/status', (req, res) => {
-  res.json({ challenges: state });
-});
-
-// 2. Endpoint que llamas cuando resuelven un enigma físico:
-app.post('/api/solve/:num', (req, res) => {
-  const num = req.params.num;
-  state[\`challenge\${num}\`] = true;
-  console.log(\`Desafío \${num} superado!\`);
-  res.json({ success: true, state });
-});
-
-app.listen(5000, () => console.log('API de Escape Room lista en puerto 5000'));`;
-    }
-
-    if (apiSnippetLang === 'PYTHON') {
-      return `# Backend Python Flask para tu Escape Room
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
-
-state = {
-    "1": False,
-    "2": False,
-    "3": False,
-    "4": False
-}
-
-# 1. Endpoint consultado por la emisora:
-@app.route('/api/status', methods=['GET'])
-def get_status():
-    return jsonify({"challenges": state})
-
-# 2. Endpoint activado por tus sensores o botones:
-@app.route('/api/solve/<int:num>', methods=['POST'])
-def solve(num):
-    if 1 <= num <= 4:
-        state[str(num)] = True
-        return jsonify({"success": True, "state": state})
-    return jsonify({"error": "Desafío inválido"}), 400
-
-if __name__ == '__main__':
-    app.run(port=5000, host='0.0.0.0')`;
-    }
-
-    if (apiSnippetLang === 'ARDUINO') {
-      return `// Código para ESP32 / Arduino con WiFi
-#include <WiFi.h>
-#include <HTTPClient.h>
-
-const char* ssid = "TU_WIFI";
-const char* password = "TU_PASSWORD";
-const char* serverUrl = "http://192.168.1.100:5000/api/solve/1";
-
-void setup() {
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) { delay(500); }
-  Serial.println("Conectado a WiFi!");
-}
-
-void resolverDesafio1() {
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(serverUrl);
-    http.addHeader("Content-Type", "application/json");
-    int httpResponseCode = http.POST("{}");
-    Serial.print("Respuesta HTTP: ");
-    Serial.println(httpResponseCode);
-    http.end();
-  }
-}
-
-void loop() {
-  // Cuando el sensor magnético o teclado se active:
-  // resolverDesafio1();
-}`;
-    }
-
-    return `# Consultar o activar vía cURL desde cualquier terminal:
-
-# 1. Enviar evento de Desafío 1 Completado:
-curl -X POST http://localhost:5000/api/solve/1
-
-# 2. Consultar estado actual:
-curl http://localhost:5000/api/status
-
-# 3. Disparar acción directa a la emisora si usas Webhook:
-curl -X POST http://localhost:5000/api/action \\
-  -H "Content-Type: application/json" \\
-  -d '{"action": "SOLVE_CHALLENGE", "challengeNumber": 2}'`;
-  };
-
   return (
     <div className="min-h-screen bg-[#070709] text-slate-100 p-4 sm:p-6 lg:p-8 select-none">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -381,33 +207,6 @@ curl -X POST http://localhost:5000/api/action \\
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveTab(activeTab === 'API' ? 'NONE' : 'API')}
-              className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                activeTab === 'API'
-                  ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-950/50'
-                  : 'bg-[#181926] hover:bg-[#202233] border-[#2b2d42] text-indigo-300'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>Vincular API Externa</span>
-              {apiStatus === 'CONNECTED' && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab(activeTab === 'GITHUB' ? 'NONE' : 'GITHUB')}
-              className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                activeTab === 'GITHUB'
-                  ? 'bg-slate-700 border-slate-400 text-white'
-                  : 'bg-[#181926] hover:bg-[#202233] border-[#2b2d42] text-slate-300'
-              }`}
-            >
-              <Github className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Listo para</span> GitHub
-            </button>
-
             <button
               onClick={() => setActiveTab(activeTab === 'LOG' ? 'NONE' : 'LOG')}
               className={`px-3 py-2 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
@@ -460,320 +259,6 @@ curl -X POST http://localhost:5000/api/action \\
             </button>
           </div>
         </header>
-
-        {/* Drawer: External API Integration */}
-        {activeTab === 'API' && (
-          <div className="p-6 rounded-2xl bg-[#0b0c14] border-2 border-indigo-600/70 shadow-2xl space-y-6 animate-fadeIn">
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#20233b]">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-indigo-950 border border-indigo-700/80 flex items-center justify-center text-indigo-400">
-                  <Globe className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-white font-display">
-                    Conexión con otra API & Sensores Hardware
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Sincroniza la emisora en tiempo real con tu backend (Node, Python, Arduino, ESP32 o Raspberry Pi).
-                  </p>
-                </div>
-              </div>
-
-              {/* Status pill */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-400 font-mono">Estado API:</span>
-                <div
-                  className={`px-3 py-1 rounded-full text-xs font-bold font-mono flex items-center gap-1.5 ${
-                    apiStatus === 'CONNECTED'
-                      ? 'bg-emerald-950 border border-emerald-600 text-emerald-300'
-                      : apiStatus === 'CONNECTING'
-                      ? 'bg-amber-950 border border-amber-600 text-amber-300 animate-pulse'
-                      : apiStatus === 'ERROR'
-                      ? 'bg-red-950 border border-red-600 text-red-300'
-                      : 'bg-[#181a28] border border-[#2b2d42] text-slate-400'
-                  }`}
-                >
-                  {apiStatus === 'CONNECTED' && (
-                    <>
-                      <Wifi className="w-3 h-3 text-emerald-400" />
-                      <span>CONECTADO {apiPing !== null && `(${apiPing}ms)`}</span>
-                    </>
-                  )}
-                  {apiStatus === 'CONNECTING' && (
-                    <>
-                      <RefreshCw className="w-3 h-3 text-amber-400 animate-spin" />
-                      <span>CONECTANDO...</span>
-                    </>
-                  )}
-                  {apiStatus === 'ERROR' && (
-                    <>
-                      <WifiOff className="w-3 h-3 text-red-400" />
-                      <span>ERROR DE CONEXIÓN</span>
-                    </>
-                  )}
-                  {apiStatus === 'DISCONNECTED' && (
-                    <>
-                      <WifiOff className="w-3 h-3 text-slate-500" />
-                      <span>DESCONECTADO</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Config Form Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                  <span>URL de Polling HTTP REST</span>
-                  <span className="text-[11px] text-slate-500 font-mono">GET /api/status</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="http://localhost:5000/api/status"
-                  value={apiConfig.httpUrl}
-                  onChange={(e) => setApiConfig({ ...apiConfig, httpUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#141524] border border-[#2b2e48] text-xs font-mono text-slate-100 focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                  <span>Token de Autorización / API Key (Opcional)</span>
-                  <span className="text-[11px] text-slate-500 font-mono">Bearer / X-API-Key</span>
-                </label>
-                <input
-                  type="password"
-                  placeholder="token-secreto-escape-room"
-                  value={apiConfig.apiKey}
-                  onChange={(e) => setApiConfig({ ...apiConfig, apiKey: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg bg-[#141524] border border-[#2b2e48] text-xs font-mono text-slate-100 focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Toggles */}
-              <div className="flex flex-col gap-2 p-3 rounded-lg bg-[#131422] border border-[#26283e]">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={apiConfig.pollingEnabled}
-                    onChange={(e) => setApiConfig({ ...apiConfig, pollingEnabled: e.target.checked })}
-                    className="accent-indigo-500 w-4 h-4 cursor-pointer"
-                  />
-                  <span>Activar sondeo continuo (Polling HTTP)</span>
-                </label>
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Frecuencia de sondeo:</span>
-                  <span className="font-mono text-indigo-300 font-bold">{apiConfig.pollingIntervalMs} ms</span>
-                </div>
-                <input
-                  type="range"
-                  min="500"
-                  max="5000"
-                  step="250"
-                  value={apiConfig.pollingIntervalMs}
-                  onChange={(e) => setApiConfig({ ...apiConfig, pollingIntervalMs: parseInt(e.target.value) })}
-                  className="accent-indigo-500 cursor-pointer"
-                />
-              </div>
-
-              {/* WebSocket Config */}
-              <div className="space-y-1.5 p-3 rounded-lg bg-[#131422] border border-[#26283e]">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={apiConfig.wsEnabled}
-                    onChange={(e) => setApiConfig({ ...apiConfig, wsEnabled: e.target.checked })}
-                    className="accent-indigo-500 w-4 h-4 cursor-pointer"
-                  />
-                  <span>Conexión WebSocket en tiempo real</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="ws://localhost:5000"
-                  value={apiConfig.wsUrl}
-                  onChange={(e) => setApiConfig({ ...apiConfig, wsUrl: e.target.value })}
-                  className="w-full px-3 py-1.5 rounded bg-[#181a2c] border border-[#2c2f48] text-xs font-mono text-slate-100 focus:border-indigo-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Test connection alert message */}
-            {testResult && (
-              <div
-                className={`p-3 rounded-lg text-xs font-mono flex items-center gap-2 ${
-                  testResult.ok
-                    ? 'bg-emerald-950/70 border border-emerald-600 text-emerald-200'
-                    : 'bg-red-950/70 border border-red-600 text-red-200'
-                }`}
-              >
-                {testResult.ok ? <Check className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-red-400" />}
-                <span>{testResult.msg}</span>
-              </div>
-            )}
-
-            {apiError && !testResult && (
-              <div className="p-3 rounded-lg bg-red-950/40 border border-red-800/60 text-xs font-mono text-red-300 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-400" />
-                <span>Error de comunicación: {apiError}</span>
-              </div>
-            )}
-
-            {/* Action Bar for API Settings */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleSaveApiConfig}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-indigo-950/40 cursor-pointer transition-all"
-                >
-                  Guardar & Conectar
-                </button>
-                <button
-                  onClick={handleTestApiPing}
-                  disabled={isTestingApi}
-                  className="px-3.5 py-2 rounded-lg bg-[#181a28] hover:bg-[#222438] border border-[#303350] text-slate-200 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  {isTestingApi ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 text-amber-400" />}
-                  <span>Probar Conexión (Ping)</span>
-                </button>
-              </div>
-
-              {/* Simulation tools */}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
-                <span>Simular señal entrante:</span>
-                <button
-                  onClick={() => simulateApiAction('SOLVE_CHALLENGE', 1)}
-                  className="px-2 py-1 rounded bg-[#1a1d2e] hover:bg-[#242840] border border-[#323654] text-emerald-300 font-mono text-[11px] cursor-pointer"
-                >
-                  + Desafío 1
-                </button>
-                <button
-                  onClick={() => simulateApiAction('SOLVE_CHALLENGE', 2)}
-                  className="px-2 py-1 rounded bg-[#1a1d2e] hover:bg-[#242840] border border-[#323654] text-emerald-300 font-mono text-[11px] cursor-pointer"
-                >
-                  + Desafío 2
-                </button>
-                <button
-                  onClick={() => simulateApiAction('WIN')}
-                  className="px-2 py-1 rounded bg-[#1a1d2e] hover:bg-[#242840] border border-[#323654] text-amber-300 font-mono text-[11px] cursor-pointer"
-                >
-                  🏆 Ganar
-                </button>
-              </div>
-            </div>
-
-            {/* Code Examples Tabs */}
-            <div className="space-y-2 pt-2 border-t border-[#1c1e33]">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                    Ejemplos de Código para Vincular
-                  </span>
-                  <div className="flex items-center gap-1 ml-3">
-                    {(['NODE', 'PYTHON', 'ARDUINO', 'CURL'] as const).map((lang) => (
-                      <button
-                        key={lang}
-                        onClick={() => setApiSnippetLang(lang)}
-                        className={`px-2 py-0.5 rounded text-[11px] font-mono cursor-pointer transition-colors ${
-                          apiSnippetLang === lang
-                            ? 'bg-indigo-600 text-white font-bold'
-                            : 'bg-[#181a28] text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {lang}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => copySnippet(getCodeSnippet())}
-                  className="px-2.5 py-1 text-xs rounded bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-200 flex items-center gap-1 cursor-pointer"
-                >
-                  {copiedSnippet ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>¡Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copiar código</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <pre className="text-xs font-mono p-3 bg-black/70 rounded-lg text-slate-300 overflow-x-auto border border-[#1e2136]">
-                {getCodeSnippet()}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {/* Drawer: GitHub & GitHub Pages */}
-        {activeTab === 'GITHUB' && (
-          <div className="p-6 rounded-2xl bg-[#0e111a] border-2 border-slate-600 shadow-2xl space-y-4 animate-fadeIn">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <Github className="w-6 h-6 text-white" />
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-white font-display">
-                    Listo para Subir y Correr en GitHub
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    Esta aplicación ya cuenta con configuración de rutas relativas y despliegue automático con GitHub Actions.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={copyGitCommands}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-mono text-slate-200 flex items-center gap-1.5 cursor-pointer"
-              >
-                {copiedGit ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>Copiar comandos Git</span>
-              </button>
-            </div>
-
-            {/* Checklist */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-              <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span><strong>package-lock.json:</strong> Generado para instalación precisa en GitHub Actions.</span>
-              </div>
-              <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span><strong>deploy.yml:</strong> Workflow en <code>.github/workflows</code> tolerante y listo.</span>
-              </div>
-              <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span><strong>vite.config.ts:</strong> Ruta base <code>base: './'</code> configurada.</span>
-              </div>
-              <div className="p-3 rounded-lg bg-[#141824] border border-[#252c42] flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span><strong>public/.nojekyll:</strong> Archivo presente para lectura de assets.</span>
-              </div>
-            </div>
-
-            {/* Terminal snippet */}
-            <div className="space-y-1">
-              <span className="text-[11px] font-mono text-slate-400">Comandos para subir a tu repositorio:</span>
-              <pre className="p-3 rounded bg-black/80 font-mono text-xs text-emerald-400 overflow-x-auto border border-slate-800">
-{`git init
-git add .
-git commit -m "Escape Room Station"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/TU_REPOSITORIO.git
-git push -u origin main`}
-              </pre>
-            </div>
-            <p className="text-[11px] text-slate-400">
-              * En tu repositorio de GitHub, ve a <strong>Settings &gt; Pages</strong> y en <strong>Source</strong> selecciona <strong>GitHub Actions</strong>. En un minuto estará publicado en vivo.
-            </p>
-          </div>
-        )}
 
         {/* Drawer: Event Log (Full View) */}
         {activeTab === 'LOG' && (

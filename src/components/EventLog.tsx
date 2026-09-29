@@ -20,6 +20,9 @@ import {
   Sparkles,
   ArrowDownCircle,
   Sliders,
+  FileSpreadsheet,
+  FileJson,
+  FileText,
 } from 'lucide-react';
 import { GameEvent, GameEventCategory, GameEventSeverity } from '../types';
 import { eventLogService } from '../services/eventLogService';
@@ -71,9 +74,20 @@ export const EventLog: React.FC<EventLogProps> = ({ className = '', isCompact = 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownloadLog = (format: 'txt' | 'json') => {
-    const content = format === 'txt' ? eventLogService.exportAsText() : eventLogService.exportAsJson();
-    const mime = format === 'txt' ? 'text/plain' : 'application/json';
+  const handleDownloadLog = (format: 'json' | 'csv' | 'txt') => {
+    let content = '';
+    let mime = 'text/plain';
+    if (format === 'json') {
+      content = eventLogService.exportAsJson();
+      mime = 'application/json';
+    } else if (format === 'csv') {
+      content = eventLogService.exportAsCsv();
+      mime = 'text/csv;charset=utf-8;';
+    } else {
+      content = eventLogService.exportAsText();
+      mime = 'text/plain';
+    }
+
     const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -194,6 +208,24 @@ export const EventLog: React.FC<EventLogProps> = ({ className = '', isCompact = 
           </span>
 
           <button
+            onClick={() => handleDownloadLog('json')}
+            title="Descargar historial de eventos como archivo JSON para análisis programático"
+            className="px-2.5 py-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-700/60 text-indigo-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <FileJson className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Descargar JSON</span>
+          </button>
+
+          <button
+            onClick={() => handleDownloadLog('csv')}
+            title="Descargar historial de eventos como archivo CSV para Excel / Google Sheets"
+            className="px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-700/60 text-emerald-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Descargar CSV</span>
+          </button>
+
+          <button
             onClick={handleCopyLog}
             title="Copiar historial al portapapeles"
             className="px-2.5 py-1.5 rounded-lg bg-[#181a28] hover:bg-[#222538] border border-[#30354e] text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
@@ -201,31 +233,6 @@ export const EventLog: React.FC<EventLogProps> = ({ className = '', isCompact = 
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copied ? '¡Copiado!' : 'Copiar'}</span>
           </button>
-
-          <div className="relative group">
-            <button
-              onClick={() => handleDownloadLog('txt')}
-              title="Descargar registro en texto o JSON"
-              className="px-2.5 py-1.5 rounded-lg bg-[#181a28] hover:bg-[#222538] border border-[#30354e] text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Exportar</span>
-            </button>
-            <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-[#141724] border border-[#2e334a] rounded-lg shadow-xl p-1 z-30 min-w-[120px]">
-              <button
-                onClick={() => handleDownloadLog('txt')}
-                className="text-left px-2.5 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-indigo-600/30 rounded cursor-pointer"
-              >
-                Formato TXT (.txt)
-              </button>
-              <button
-                onClick={() => handleDownloadLog('json')}
-                className="text-left px-2.5 py-1.5 text-xs text-slate-300 hover:text-white hover:bg-indigo-600/30 rounded cursor-pointer"
-              >
-                Formato JSON (.json)
-              </button>
-            </div>
-          </div>
 
           <button
             onClick={handleClearLog}

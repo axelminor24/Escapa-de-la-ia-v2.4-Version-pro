@@ -253,6 +253,46 @@ class EventLogService {
       2
     );
   }
+
+  public exportAsCsv(): string {
+    const headers = [
+      '#',
+      'Hora_Real',
+      'Tiempo_Restante',
+      'Segundos_Transcurridos',
+      'Categoria',
+      'Severidad',
+      'Titulo',
+      'Detalle',
+      'Origen',
+    ];
+    const rows = [headers.join(',')];
+
+    // Chronological order (oldest to newest)
+    const chrono = [...this.events].reverse();
+    chrono.forEach((e, idx) => {
+      const escapeCsv = (val: string = '') => {
+        const clean = val.replace(/"/g, '""');
+        return `"${clean}"`;
+      };
+
+      const row = [
+        idx + 1,
+        escapeCsv(e.wallTime),
+        escapeCsv(e.gameTime),
+        e.elapsedSec,
+        escapeCsv(e.category),
+        escapeCsv(e.severity),
+        escapeCsv(e.title),
+        escapeCsv(e.detail || ''),
+        escapeCsv(e.source || ''),
+      ];
+      rows.push(row.join(','));
+    });
+
+    // Return with UTF-8 BOM for full Excel/Google Sheets compatibility
+    return '\uFEFF' + rows.join('\r\n');
+  }
 }
 
 export const eventLogService = new EventLogService();

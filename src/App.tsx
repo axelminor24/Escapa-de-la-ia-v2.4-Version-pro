@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameStatus, ChallengesState, ChallengeNumber, SyncMessage } from './types';
 import { audioEngine, INITIAL_TRACKS } from './services/audioEngine';
-import { externalApiService } from './services/externalApiService';
 import { eventLogService } from './services/eventLogService';
 import { RoleSelector } from './components/RoleSelector';
 import { PlayerView } from './components/PlayerView';
@@ -128,13 +127,6 @@ export default function App() {
 
       // Record Event Log
       eventLogService.recordChallengeEvent(num, isSolved, solvedCount, 'Control Maestro');
-
-      externalApiService.sendWebhookUpdate({
-        action: 'CHALLENGE_UPDATE',
-        challengeNumber: num,
-        isSolved,
-        challenges: updated,
-      });
 
       // User requirement: When a challenge is completed, play its specific audio track,
       // superimposing over any current audio (pausing it) and resuming it once finished!
@@ -559,63 +551,9 @@ export default function App() {
     };
     window.addEventListener('storage', handleStorage);
 
-    // Listen for External API service actions
-    const unsubApi = externalApiService.onAction((data) => {
-      if (data.action) {
-        eventLogService.recordApiEvent(
-          data.action,
-          `Comando externo recibido: ${data.action}${
-            data.challengeNumber ? ` para desafío #${data.challengeNumber}` : ''
-          }`,
-          'API Externa / Red'
-        );
-      }
-
-      if (data.action === 'START') {
-        startGameSequence(data.skipIntro ?? false);
-      } else if (data.action === 'SKIP_INTRO') {
-        startCountdown();
-      } else if (data.action === 'PAUSE') {
-        pauseGame();
-      } else if (data.action === 'RESET') {
-        resetGame();
-      } else if (data.action === 'WIN') {
-        triggerVictory();
-      } else if (data.action === 'SOLVE_CHALLENGE' && typeof data.challengeNumber === 'number') {
-        const num = data.challengeNumber as ChallengeNumber;
-        if (num >= 1 && num <= 4) {
-          setChallengeStatus(num, true);
-        }
-      } else if (data.action === 'UNSOLVE_CHALLENGE' && typeof data.challengeNumber === 'number') {
-        const num = data.challengeNumber as ChallengeNumber;
-        if (num >= 1 && num <= 4) {
-          setChallengeStatus(num, false);
-        }
-      } else if (data.action === 'TRIGGER_AUDIO' && data.trackId) {
-        const track = INITIAL_TRACKS.find((t) => t.id === data.trackId);
-        if (track) {
-          audioEngine.playVoiceTrack(track);
-        }
-      } else if (data.challenges) {
-        const c = data.challenges;
-        const c1 = c[1] ?? c.challenge1;
-        const c2 = c[2] ?? c.challenge2;
-        const c3 = c[3] ?? c.challenge3;
-        const c4 = c[4] ?? c.challenge4;
-        if (c1 !== undefined) setChallengeStatus(1, Boolean(c1));
-        if (c2 !== undefined) setChallengeStatus(2, Boolean(c2));
-        if (c3 !== undefined) setChallengeStatus(3, Boolean(c3));
-        if (c4 !== undefined) setChallengeStatus(4, Boolean(c4));
-      }
-    });
-
-    // Start external API connections
-    externalApiService.restartConnections();
-
     return () => {
       channel.close();
       window.removeEventListener('storage', handleStorage);
-      unsubApi();
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
       }

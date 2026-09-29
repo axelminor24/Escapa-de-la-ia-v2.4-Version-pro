@@ -109,9 +109,10 @@ El panel de administración cuenta con una sección visual auditada de **Event L
   - Filtros instantáneos por categoría (`Todos`, `Desafíos`, `Estado`, `Audios`, `Hitos`, `API`).
   - Buscador por texto en tiempo real.
   - Modo auto-scroll para seguir en vivo los nuevos eventos.
+  - Botón **Descargar JSON:** Descarga el historial estructurado en formato `.json`.
+  - Botón **Descargar CSV:** Descarga el archivo `.csv` (con BOM UTF-8) listo para abrir directamente en Microsoft Excel o Google Sheets.
   - Botón **Copiar Historial** al portapapeles.
-  - Botón **Exportar** en formatos `.txt` o `.json` para debriefing o reportes finales.
-  - Visualización integrada en el panel principal (plegable) y opción de pestaña expandida a pantalla completa.
+  - Visualización integrada en el panel principal (plegable) y pestaña expandida a pantalla completa.
 
 ---
 
