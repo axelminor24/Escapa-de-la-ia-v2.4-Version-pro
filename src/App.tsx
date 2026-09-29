@@ -77,6 +77,11 @@ export default function App() {
 
     setGameState('VICTORY');
 
+    // Ensure all 4 challenges are marked as solved on victory
+    const allSolved: ChallengesState = { 1: true, 2: true, 3: true, 4: true };
+    setChallenges(allSolved);
+    challengesRef.current = allSolved;
+
     // Record Event Log
     eventLogService.recordStateEvent(
       'VICTORY',
@@ -101,7 +106,7 @@ export default function App() {
     broadcast({
       type: 'VICTORY',
       gameState: 'VICTORY',
-      challenges: { 1: true, 2: true, 3: true, 4: true },
+      challenges: allSolved,
     });
   }, [broadcast]);
 
@@ -109,7 +114,10 @@ export default function App() {
   const setChallengeStatus = useCallback((num: ChallengeNumber, isSolved: boolean) => {
     setChallenges((prev) => {
       const wasSolved = prev[num];
+      if (wasSolved === isSolved) return prev;
+
       const updated = { ...prev, [num]: isSolved };
+      challengesRef.current = updated;
       const solvedCount = Object.values(updated).filter(Boolean).length;
 
       // Broadcast challenge update
@@ -124,13 +132,13 @@ export default function App() {
       // User requirement: When a challenge is completed, play its specific audio track,
       // superimposing over any current audio (pausing it) and resuming it once finished!
       if (!wasSolved && isSolved) {
-        if (num === 4 || solvedCount === 4) {
+        if (solvedCount === 4) {
           // All 4 challenges completed: trigger immediate victory
           setTimeout(() => {
             triggerVictory();
           }, 10);
         } else {
-          // Challenges 1, 2, or 3 completed:
+          // Specific challenge track:
           const challengeTrack = INITIAL_TRACKS.find((t) => t.id === `challenge_${num}`);
           if (challengeTrack) {
             audioEngine.playInterruptingVoiceTrack(challengeTrack);
@@ -143,11 +151,8 @@ export default function App() {
   }, [broadcast, triggerVictory]);
 
   const toggleChallenge = useCallback((num: ChallengeNumber) => {
-    setChallenges((prev) => {
-      const nextVal = !prev[num];
-      setChallengeStatus(num, nextVal);
-      return prev;
-    });
+    const currentVal = challengesRef.current[num];
+    setChallengeStatus(num, !currentVal);
   }, [setChallengeStatus]);
 
   // --- START COUNTDOWN (Guaranteed to advance the clock accurately and cancel intro voice) ---
