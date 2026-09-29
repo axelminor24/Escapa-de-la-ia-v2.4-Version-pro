@@ -18,6 +18,10 @@ export default function NetworkApp() {
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [confirmation, setConfirmation] = useState<{ action: 'RESET' | 'WIN'; runId: string } | null>(null);
+  const confirmationDialog = useRef<HTMLDialogElement>(null);
+  const commandInFlight = useRef(false);
   const [links, setLinks] = useState<Links | null>(null);
   const [config, setConfig] = useState<{ transport: string; requiresCode?: boolean } | null>(null);
   const [key, setKey] = useState('');
@@ -94,17 +98,30 @@ export default function NetworkApp() {
   }, [display, enabled, receive, config]);
 
   const command = useCallback(async (action: string, extra: Record<string, unknown> = {}) => {
-    if (!latest.current || !soundEnabled.current || Date.now() - received.current > 3000) return;
-    setBusy(true); setError('');
+    if (!latest.current || !soundEnabled.current) {
+      setError('Activá el control antes de enviar una orden.');
+      return false;
+    }
+    if (commandInFlight.current) return false;
+    commandInFlight.current = true;
+    setBusy(true); setError(''); setNotice('');
     try {
       const response = await fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Escape-Request': '1' }, body: JSON.stringify({ action, runId: latest.current.runId, requestId: requestId(), ...extra }), signal: AbortSignal.timeout(5000) });
       const result = await response.json();
       if (result.snapshot) receive(result.snapshot);
       if (!response.ok) throw new Error(result.error);
-    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo enviar la orden.'); }
-    finally { setBusy(false); }
+      if (action === 'RESET') setNotice('Partida reiniciada: reloj en 15:00 y desafíos preparados desde el comienzo.');
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo enviar la orden.'); return false; }
+    finally { commandInFlight.current = false; setBusy(false); }
   }, [receive]);
   commandRef.current = command;
+
+  useEffect(() => {
+    const dialog = confirmationDialog.current;
+    if (confirmation && dialog && !dialog.open) dialog.showModal();
+    if (!confirmation && dialog?.open) dialog.close();
+  }, [confirmation]);
 
   async function activate() {
     setError(''); setBusy(true);
@@ -157,17 +174,31 @@ export default function NetworkApp() {
         {!links?.stations.length && <p>Esperando los enlaces para las otras computadoras…</p>}
         <p>Los parlantes se conectan a esta computadora. Mantené abierto este panel durante la muestra.</p>
         {error && <p role="alert" className="text-amber-200">{error}</p>}
+        {notice && <p role="status" className="text-emerald-300">{notice}</p>}
         {!connected && <button className="border border-amber-400 rounded-lg p-3" onClick={deactivate}>Volver a activar el control</button>}
       </div>
     </section>
     <fieldset disabled={!connected || busy} className="border-0 m-0 p-0 min-w-0">
       <AdminView networkMode remainingStr={format(room.remainingSec)} elapsedSec={room.elapsedSec} totalSec={room.totalSec} gameState={room.status} challenges={challenges}
         onStart={skip => command(skip ? 'SKIP_INTRO' : 'START')} onPause={() => command('PAUSE')}
-        onReset={() => { if (window.confirm('¿Preparar una nueva partida y borrar el avance de los cuatro desafíos?')) command('RESET'); }}
-        onVictory={() => { if (window.confirm('¿Confirmar la victoria manualmente?')) command('WIN'); }}
+        onReset={() => { setError(''); setConfirmation({ action: 'RESET', runId: room.runId }); }}
+        onVictory={() => { setError(''); setConfirmation({ action: 'WIN', runId: room.runId }); }}
         onToggleChallenge={number => command('CHALLENGE', { number })}
         onSwitchToPlayer={() => window.open('/pantalla', '_blank')} onOpenPopout={() => window.open('/pantalla', '_blank')}
         onLogout={() => { deactivate(); if(config?.requiresCode)fetch('/api/logout',{method:'POST',headers:{'Content-Type':'application/json','X-Escape-Request':'1'},body:'{}'}).catch(()=>{}); }} />
     </fieldset>
+    <dialog ref={confirmationDialog} aria-labelledby="confirmation-title" aria-describedby="confirmation-description"
+      onCancel={event => { event.preventDefault(); if (!busy) setConfirmation(null); }}
+      className="m-auto w-[min(92vw,480px)] rounded-2xl border border-slate-600 bg-slate-950 p-6 text-slate-100 shadow-2xl backdrop:bg-black/75">
+      <h2 id="confirmation-title" className="text-xl font-bold">{confirmation?.action === 'RESET' ? '¿Reiniciar la partida?' : '¿Confirmar la victoria?'}</h2>
+      <p id="confirmation-description" className="mt-3 text-slate-300">{confirmation?.action === 'RESET' ? 'El reloj volverá a 15:00 y se borrarán el equipo y las respuestas de los cuatro desafíos en todas las pantallas. Los archivos de audio cargados se conservan.' : 'La partida terminará y las tres pantallas mostrarán la victoria.'}</p>
+      {error && <p role="alert" className="mt-3 text-amber-200">{error}</p>}
+      <div className="mt-6 flex justify-end gap-3">
+        <button autoFocus disabled={busy} onClick={() => setConfirmation(null)} className="rounded-lg border border-slate-500 px-4 py-3 disabled:opacity-50">Cancelar</button>
+        <button disabled={busy} onClick={async () => {
+          if (confirmation && await command(confirmation.action, { runId: confirmation.runId })) setConfirmation(null);
+        }} className="rounded-lg bg-red-600 px-4 py-3 font-bold disabled:opacity-50">{busy ? 'Aplicando…' : confirmation?.action === 'RESET' ? 'Sí, reiniciar' : 'Sí, confirmar victoria'}</button>
+      </div>
+    </dialog>
   </>;
 }

@@ -50,8 +50,7 @@ export default {
           }
           if(path==='/api/links') {
             if(!await allowed(req,env,'operator'))return json({error:'Ingresá la clave del coordinador.'},401);
-            const token=await sign(env.SESSION_KEY,'participant-link-v1');
-            return json({control:`${url.origin}/control`,stations:[{display:`${url.origin}/pantalla`,challenges:`${url.origin}/desafios/#acceso=${token}`}]});
+            return json({control:`${url.origin}/control`,stations:[{display:`${url.origin}/pantalla`,challenges:`${url.origin}/desafios/`}]});
           }
           return json({error:'Ruta inexistente.'},404);
         }
@@ -68,13 +67,14 @@ export default {
           return grant(env,'operator');
         }
         if(path==='/api/player-access') {
-          if(!equal(body.token,await sign(env.SESSION_KEY,'participant-link-v1')))return json({error:'Abrí el enlace de desafíos que muestra el coordinador.'},403);
+          // Participants enter through the public challenges URL. This cookie
+          // only permits answers; coordinator commands still require the key.
           return grant(env,'player');
         }
         if(path==='/api/logout')return json({ok:true},200,{'Set-Cookie':'escape_operator=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0'});
         if(path!=='/api/control'&&path!=='/api/player')return json({error:'Ruta inexistente.'},404);
         const control=path==='/api/control';
-        if(!await allowed(req,env,control?'operator':'player'))return json({error:control?'Ingresá la clave del coordinador.':'Abrí el enlace de desafíos que muestra el coordinador.'},401);
+        if(!await allowed(req,env,control?'operator':'player'))return json({error:control?'Ingresá la clave del coordinador.':'Recargá la página de desafíos para volver a conectarte.'},401);
         const result=await updateRoom(env.DB,{action:control?'control':'player',body});
         return json(result,result.code);
       }

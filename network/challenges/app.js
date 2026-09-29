@@ -66,7 +66,7 @@ function applySnapshot(next,force=false){
   const prior=state;
   const mapped={IDLE:'ready',INTRO:'waiting',RUNNING:'playing',PAUSED:'paused',VICTORY:'won',GAMEOVER:'lost'};
   state={...empty(),...next.board,runId:next.runId,status:mapped[next.status]};
-  if(newRun){feedback='';error=false;}
+  if(newRun){feedback='';error=false;statusBanner.textContent=previous?'Nueva partida preparada. Registren el equipo para comenzar.':'PC 3 · Desafíos conectados a la partida';}
   const draft=newRun?savedDraft:prior;
   if(!force&&draft?.runId===next.runId&&JSON.stringify(draft.solved)===JSON.stringify(state.solved)&&draft.view<=state.solved.length){
     const currentView=state.view;state.view=draft.view;const newStage=stageKey();state.view=currentView;
@@ -112,11 +112,9 @@ async function connect(){
     const response=await fetch('/api/config');
     const config=response.ok?await response.json():{transport:'sse'};
     if(config.transport==='poll'){
-      const token=new URLSearchParams(location.hash.slice(1)).get('acceso')||sessionStorage.getItem('escape-access');
-      if(!token){statusBanner.textContent='Abrí el enlace de desafíos que muestra el panel del coordinador.';return;}
-      const access=await fetch('/api/player-access',{method:'POST',headers:{'Content-Type':'application/json','X-Escape-Request':'1'},body:JSON.stringify({token})});
-      if(!access.ok){statusBanner.textContent='El enlace no es válido. Pedile el enlace al coordinador.';return;}
-      sessionStorage.setItem('escape-access',token);history.replaceState(null,'',location.pathname);
+      const access=await fetch('/api/player-access',{method:'POST',headers:{'Content-Type':'application/json','X-Escape-Request':'1'},body:'{}',signal:AbortSignal.timeout(5000)});
+      if(!access.ok)throw new Error('No se pudo habilitar el acceso a los desafíos.');
+      if(location.hash)history.replaceState(null,'',location.pathname);
       const client=Date.now()+'-'+Math.random().toString(36).slice(2);
       async function poll(){
         try{const res=await fetch('/api/state?role=challenges&client='+client,{cache:'no-store',signal:AbortSignal.timeout(4000)});if(!res.ok)throw new Error();applySnapshot(await res.json());}

@@ -6,13 +6,13 @@ Juego para una muestra escolar: un coordinador, una pantalla de cronómetro y un
 
 1. En la PC 1, abrir `/control`, ingresar la clave del coordinador y activar el sonido.
 2. Copiar el enlace **PC 2 · Cronómetro** del panel y abrirlo en la segunda computadora.
-3. Copiar el enlace completo **PC 3 · Desafíos** y abrirlo en la tercera. Ese enlace habilita el envío de respuestas.
+3. Abrir `/desafios/` en la tercera computadora o en los celulares. El enlace público permite entrar directamente, sin clave ni código adicional.
 4. Registrar el equipo desde los desafíos. Desde el control, iniciar con explicación o iniciar directamente.
 5. Mantener abierto el panel del coordinador, con sus parlantes conectados. Las otras pantallas no reproducen audio.
 
 El sitio publicado requiere Internet en las tres computadoras. No necesitan iniciar sesión en ChatGPT. Hay una sola partida compartida por sitio: las pestañas adicionales también muestran esa partida.
 
-El cronómetro pertenece al servidor. Recargar una pantalla conserva la partida. Pausar, reanudar y reiniciar se propaga a las tres pantallas. El cuarto desafío revela el último dígito, pero la cuenta sigue hasta abrir el candado.
+El cronómetro pertenece al servidor. Recargar una pantalla conserva la partida. Pausar, reanudar y reiniciar se propaga a las tres pantallas. Para reiniciar, pulsar **Reiniciar a 15:00** y luego **Sí, reiniciar**: se borran el equipo y las respuestas, y se conservan los audios cargados. La confirmación permanece disponible sin límite de tres segundos. El cuarto desafío revela el último dígito, pero la cuenta sigue hasta abrir el candado.
 
 Si se pierde conexión, las pantallas avisan y los desafíos no aceptan envíos hasta reconectarse. En el sitio web el reloj continúa: el coordinador puede pausar cuando conserve conexión. Los borradores de respuestas permanecen en el mismo navegador cuando el desafío sigue vigente.
 
