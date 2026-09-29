@@ -193,7 +193,7 @@ export default function App() {
       eventLogService.updateTimeContext(getRemainingTimeStr(nextElapsed), nextElapsed);
 
       // Only process when second counter actually advances
-      if (nextElapsed === elapsedSecRef.current && elapsedSecRef.current > 0) return;
+      if (nextElapsed === elapsedSecRef.current && deltaSec > 0) return;
       elapsedSecRef.current = nextElapsed;
       setElapsedSec(nextElapsed);
 
@@ -363,10 +363,11 @@ export default function App() {
     audioEngine.pauseAmbient();
     audioEngine.stopVoice();
 
+    const frozenRemaining = getRemainingTimeStr(elapsedSecRef.current);
     eventLogService.recordStateEvent(
       'PAUSED',
       'Partida Pausada',
-      `Cronómetro congelado a los ${remainingStr} restantes.`,
+      `Cronómetro congelado a los ${frozenRemaining} restantes.`,
       'warning',
       'Operador'
     );
@@ -375,7 +376,7 @@ export default function App() {
       type: 'PAUSE',
       gameState: 'PAUSED',
     });
-  }, [broadcast, remainingStr]);
+  }, [broadcast, getRemainingTimeStr]);
 
   // --- RESET GAME ---
   const resetGame = useCallback(() => {
@@ -416,6 +417,27 @@ export default function App() {
     });
   }, [broadcast]);
 
+  // Ref to hold current handlers so the broadcast / storage listener does not re-subscribe on re-renders
+  const handlersRef = useRef({
+    startGameSequence,
+    startCountdown,
+    triggerVictory,
+    resetGame,
+    pauseGame,
+    setChallengeStatus,
+  });
+
+  useEffect(() => {
+    handlersRef.current = {
+      startGameSequence,
+      startCountdown,
+      triggerVictory,
+      resetGame,
+      pauseGame,
+      setChallengeStatus,
+    };
+  });
+
   // --- INITIALIZATION & BROADCAST / EXTERNAL API LISTENERS ---
   useEffect(() => {
     // Check if opened as player popout (?mode=player)
@@ -442,16 +464,16 @@ export default function App() {
         if (data.action === 'SOLVE_CHALLENGE' && typeof data.challengeNumber === 'number') {
           const num = data.challengeNumber as ChallengeNumber;
           if (num >= 1 && num <= 4) {
-            setChallengeStatus(num, true);
+            handlersRef.current.setChallengeStatus(num, true);
           }
         } else if (data.action === 'WIN') {
-          triggerVictory();
+          handlersRef.current.triggerVictory();
         } else if (data.action === 'RESET') {
-          resetGame();
+          handlersRef.current.resetGame();
         } else if (data.action === 'SKIP_INTRO') {
-          startCountdown();
+          handlersRef.current.startCountdown();
         } else if (data.action === 'START') {
-          startGameSequence(false);
+          handlersRef.current.startGameSequence(false);
         }
         return;
       }
@@ -462,7 +484,7 @@ export default function App() {
         if (syncMsg.type === 'REQUEST_START_FROM_PLAYER') {
           if (!isPopoutRef.current) {
             if (gameStateRef.current === 'IDLE' || gameStateRef.current === 'PAUSED') {
-              startGameSequence(false);
+              handlersRef.current.startGameSequence(false);
             }
           }
         } else if (syncMsg.type === 'TIME_TICK' && typeof syncMsg.elapsed === 'number') {
@@ -496,13 +518,13 @@ export default function App() {
         try {
           const parsed = JSON.parse(e.newValue);
           if (parsed.action === 'SOLVE_CHALLENGE' && typeof parsed.challengeNumber === 'number') {
-            setChallengeStatus(parsed.challengeNumber as ChallengeNumber, true);
+            handlersRef.current.setChallengeStatus(parsed.challengeNumber as ChallengeNumber, true);
           } else if (parsed.action === 'WIN') {
-            triggerVictory();
+            handlersRef.current.triggerVictory();
           } else if (parsed.action === 'SKIP_INTRO') {
-            startCountdown();
+            handlersRef.current.startCountdown();
           } else if (parsed.action === 'START') {
-            startGameSequence(false);
+            handlersRef.current.startGameSequence(false);
           }
         } catch {
           // ignore
@@ -518,7 +540,7 @@ export default function App() {
         clearInterval(timerIntervalRef.current);
       }
     };
-  }, [startGameSequence, startCountdown, triggerVictory, resetGame, pauseGame, setChallengeStatus]);
+  }, []);
 
   // --- KEYBOARD SHORTCUTS (ENTER, SPACE, ESCAPE) ---
   useEffect(() => {

@@ -150,6 +150,12 @@ class AudioEngine {
     onEnded?: () => void;
   } | null = null;
 
+  // Ambient & Ducking state
+  private isDucked = false;
+  private duckInterval: number | null = null;
+  private ambientKeepaliveInterval: number | null = null;
+  private shouldAmbientPlay = false;
+
   constructor() {
     // Client-side initialization
     if (typeof window !== 'undefined') {
@@ -162,6 +168,19 @@ class AudioEngine {
 
       this.priorityVoiceAudio = new Audio();
       this.priorityVoiceAudio.preload = 'auto';
+
+      // One-time gesture listener to unlock Web Audio AudioContext & media autoplay
+      const unlockAudio = () => {
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {});
+        }
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+      };
+      window.addEventListener('click', unlockAudio, { passive: true });
+      window.addEventListener('touchstart', unlockAudio, { passive: true });
+      window.addEventListener('keydown', unlockAudio, { passive: true });
     }
   }
 
@@ -171,22 +190,19 @@ class AudioEngine {
     if (this.voiceAudio) this.voiceAudio.muted = muted;
     if (this.priorityVoiceAudio) this.priorityVoiceAudio.muted = muted;
     if (this.synthGainNode && this.audioCtx) {
-      this.synthGainNode.gain.setValueAtTime(muted ? 0 : this.ambientVolume * 0.35, this.audioCtx.currentTime);
+      const target = this.isDucked ? this.ambientVolume * 0.18 : this.ambientVolume * 0.70;
+      this.synthGainNode.gain.setValueAtTime(muted ? 0 : target, this.audioCtx.currentTime);
     }
   }
 
   public setAmbientVolume(vol: number) {
     this.ambientVolume = Math.max(0, Math.min(1, vol));
     if (this.ambientAudio) {
-      // If voice is currently speaking, maintain ducking
-      if (this.currentVoiceTrackId) {
-        this.ambientAudio.volume = this.ambientVolume * 0.15;
-      } else {
-        this.ambientAudio.volume = this.ambientVolume;
-      }
+      this.ambientAudio.volume = this.isDucked ? this.ambientVolume * 0.20 : this.ambientVolume;
     }
     if (this.synthGainNode && this.audioCtx) {
-      const target = this.currentVoiceTrackId ? this.ambientVolume * 0.08 : this.ambientVolume * 0.35;
+      const target = this.isDucked ? this.ambientVolume * 0.18 : this.ambientVolume * 0.70;
+      this.synthGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
       this.synthGainNode.gain.setValueAtTime(this.isMuted ? 0 : target, this.audioCtx.currentTime);
     }
   }
@@ -221,6 +237,16 @@ class AudioEngine {
     if (fileName) {
       this.customFileNames[trackId] = fileName;
     }
+    if (trackId === 'ambient') {
+      if (this.shouldAmbientPlay) {
+        this.stopSynthDrone();
+        if (this.ambientAudio) {
+          this.ambientAudio.src = url;
+          this.ambientAudio.loop = true;
+          this.ambientAudio.play().catch(() => {});
+        }
+      }
+    }
   }
 
   public getTrackCustomFileName(trackId: string): string | null {
@@ -239,30 +265,117 @@ class AudioEngine {
     return Boolean(this.audioUrls[trackId]);
   }
 
-  // --- AMBIENT SOUND (Continuous Background) ---
+  // --- AMBIENT SOUND (Continuous 15-minute Background) ---
   public startAmbient() {
     if (this.isMuted) return;
+    this.shouldAmbientPlay = true;
+
+    // Ensure AudioContext is ready and resumed
+    const ctx = this.initAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
 
     const ambientTrack = INITIAL_TRACKS.find((t) => t.id === 'ambient')!;
+    const hasCustom = this.hasCustomAudio('ambient');
     const src = this.getTrackSrc(ambientTrack);
 
     if (this.ambientAudio) {
-      this.ambientAudio.src = src;
-      this.ambientAudio.volume = this.ambientVolume;
-      const playPromise = this.ambientAudio.play();
+      this.ambientAudio.loop = true;
 
+      // Handle missing file (e.g. 404 when Audio-de-ambiente.mp3 is not uploaded)
+      this.ambientAudio.onerror = () => {
+        if (!hasCustom) {
+          console.info('No custom ambient file found. Playing high-quality procedural escape room drone.');
+          this.startSynthDrone();
+        }
+      };
+
+      // Check if ambient already has this source loaded
+      const currentSrc = this.ambientAudio.src;
+      const isSameSrc = currentSrc && (currentSrc === src || currentSrc.endsWith(encodeURI(ambientTrack.defaultName)));
+
+      if (isSameSrc) {
+        if (this.ambientAudio.paused && !this.ambientAudio.error) {
+          const playPromise = this.ambientAudio.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              this.startSynthDrone();
+            });
+          }
+        } else if (this.ambientAudio.error || !hasCustom) {
+          if (!this.isSynthPlaying) {
+            this.startSynthDrone();
+          }
+        }
+        this.startAmbientWatchdog();
+        return;
+      }
+
+      this.ambientAudio.src = src;
+      this.ambientAudio.volume = this.isDucked ? this.ambientVolume * 0.20 : this.ambientVolume;
+
+      // Ensure continuous playback across full 15 minutes even if file duration is shorter
+      this.ambientAudio.onended = () => {
+        if (this.shouldAmbientPlay && this.ambientAudio) {
+          this.ambientAudio.currentTime = 0;
+          this.ambientAudio.play().catch(() => {});
+        }
+      };
+
+      const playPromise = this.ambientAudio.play();
       if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn('Ambient file playback failed or file not found, starting synthetic ambient drone:', err);
+        playPromise.catch(() => {
           this.startSynthDrone();
         });
       }
+
+      // If no custom audio was uploaded yet, verify file or trigger procedural atmosphere
+      if (!hasCustom) {
+        setTimeout(() => {
+          if (
+            this.shouldAmbientPlay &&
+            !this.isSynthPlaying &&
+            (!this.ambientAudio || this.ambientAudio.paused || this.ambientAudio.error || this.ambientAudio.currentTime === 0)
+          ) {
+            this.startSynthDrone();
+          }
+        }, 250);
+      }
+
+      this.startAmbientWatchdog();
     } else {
       this.startSynthDrone();
     }
   }
 
+  private startAmbientWatchdog() {
+    if (this.ambientKeepaliveInterval !== null) return;
+    this.ambientKeepaliveInterval = window.setInterval(() => {
+      if (this.shouldAmbientPlay && !this.isMuted) {
+        if (this.hasCustomAudio('ambient') && this.ambientAudio && !this.ambientAudio.error) {
+          if (this.ambientAudio.paused) {
+            this.ambientAudio.play().catch(() => {
+              this.startSynthDrone();
+            });
+          }
+        } else if (!this.isSynthPlaying) {
+          this.startSynthDrone();
+        }
+      }
+    }, 2000);
+  }
+
+  private stopAmbientWatchdog() {
+    if (this.ambientKeepaliveInterval !== null) {
+      window.clearInterval(this.ambientKeepaliveInterval);
+      this.ambientKeepaliveInterval = null;
+    }
+  }
+
   public pauseAmbient() {
+    this.shouldAmbientPlay = false;
+    this.stopAmbientWatchdog();
     if (this.ambientAudio) {
       this.ambientAudio.pause();
     }
@@ -270,11 +383,18 @@ class AudioEngine {
   }
 
   public stopAmbient() {
+    this.shouldAmbientPlay = false;
+    this.stopAmbientWatchdog();
+    if (this.duckInterval !== null) {
+      window.clearInterval(this.duckInterval);
+      this.duckInterval = null;
+    }
     if (this.ambientAudio) {
       this.ambientAudio.pause();
       this.ambientAudio.currentTime = 0;
     }
     this.stopSynthDrone();
+    this.isDucked = false;
   }
 
   // --- SYNTHETIC AMBIENT DRONE FALLBACK (Web Audio API) ---
@@ -286,7 +406,7 @@ class AudioEngine {
       }
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+      this.audioCtx.resume().catch(() => {});
     }
     return this.audioCtx;
   }
@@ -300,25 +420,36 @@ class AudioEngine {
       this.stopSynthDrone();
 
       const masterGain = ctx.createGain();
-      masterGain.gain.setValueAtTime(this.ambientVolume * 0.35, ctx.currentTime);
+      const initialGain = this.isDucked ? this.ambientVolume * 0.18 : this.ambientVolume * 0.70;
+      masterGain.gain.setValueAtTime(this.isMuted ? 0 : initialGain, ctx.currentTime);
 
+      // Resonant Lowpass Filter for dark, atmospheric bunker tension
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(140, ctx.currentTime);
+      filter.frequency.setValueAtTime(550, ctx.currentTime);
+      filter.Q.setValueAtTime(2.2, ctx.currentTime);
 
-      // Low frequency drone oscillators for escape room tension
-      const freqs = [48, 54, 72, 96];
+      // Multi-layer cinematic tension chords:
+      // D2 (73.4Hz), A2 (110Hz), D3 (146.8Hz), F3 (174.6Hz), A3 (220Hz), C4 (261.6Hz)
+      const voicesConfig: Array<{ freq: number; type: OscillatorType; gain: number; detune: number }> = [
+        { freq: 73.4, type: 'sine', gain: 0.28, detune: 0 },
+        { freq: 110.0, type: 'triangle', gain: 0.25, detune: -4 },
+        { freq: 146.8, type: 'sawtooth', gain: 0.20, detune: +3 },
+        { freq: 174.6, type: 'sine', gain: 0.16, detune: -6 },
+        { freq: 220.0, type: 'triangle', gain: 0.14, detune: +5 },
+        { freq: 261.6, type: 'sine', gain: 0.12, detune: +2 },
+      ];
+
       this.synthOscillators = [];
 
-      freqs.forEach((freq, idx) => {
+      voicesConfig.forEach((cfg) => {
         const osc = ctx.createOscillator();
-        osc.type = idx % 2 === 0 ? 'sawtooth' : 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-        // Subtle detune for thickness
-        osc.detune.setValueAtTime((idx - 1.5) * 6, ctx.currentTime);
+        osc.type = cfg.type;
+        osc.frequency.setValueAtTime(cfg.freq, ctx.currentTime);
+        osc.detune.setValueAtTime(cfg.detune, ctx.currentTime);
 
         const oscGain = ctx.createGain();
-        oscGain.gain.setValueAtTime(0.22 / freqs.length, ctx.currentTime);
+        oscGain.gain.setValueAtTime(cfg.gain, ctx.currentTime);
 
         osc.connect(oscGain);
         oscGain.connect(filter);
@@ -326,11 +457,11 @@ class AudioEngine {
         this.synthOscillators.push(osc);
       });
 
-      // LFO for slow atmospheric pulsation
+      // Slow Breathing LFO to modulate filter cutoff (from ~380Hz to ~950Hz over 7 seconds)
       const lfo = ctx.createOscillator();
-      lfo.frequency.setValueAtTime(0.18, ctx.currentTime); // 5.5 sec cycle
+      lfo.frequency.setValueAtTime(0.14, ctx.currentTime); // ~7.1s wave
       const lfoGain = ctx.createGain();
-      lfoGain.gain.setValueAtTime(35, ctx.currentTime);
+      lfoGain.gain.setValueAtTime(260, ctx.currentTime); // Modulation depth
       lfo.connect(lfoGain);
       lfoGain.connect(filter.frequency);
       lfo.start();
@@ -368,8 +499,8 @@ class AudioEngine {
       return;
     }
 
-    // 1. Immediately cut off any voice audio currently playing
-    this.stopVoice();
+    // 1. Cut off any active voice audio without prematurely un-ducking
+    this.stopVoice(false);
 
     const sessionId = ++this.voiceSessionId;
     this.currentVoiceTrackId = track.id;
@@ -377,7 +508,7 @@ class AudioEngine {
     // Log audio event
     eventLogService.recordAudioEvent(track.title, track.defaultName, false);
 
-    // 2. Duck ambient sound to 15%
+    // 2. Duck ambient background sound smoothly to 20%
     this.applyDucking(true);
 
     const src = this.getTrackSrc(track);
@@ -391,6 +522,7 @@ class AudioEngine {
         if (hasFinished || sessionId !== this.voiceSessionId) return;
         hasFinished = true;
         this.currentVoiceTrackId = null;
+        // 3. Restore ambient background smoothly back to 100%
         this.applyDucking(false);
         if (onEnded) onEnded();
       };
@@ -446,7 +578,7 @@ class AudioEngine {
       this.voiceAudio.pause();
     }
 
-    // 2. Duck ambient to 10%
+    // 2. Duck ambient to 20% smoothly
     this.applyDucking(true);
 
     // Log priority interrupting audio event
@@ -464,7 +596,6 @@ class AudioEngine {
       if (hasFinished || sessionId !== this.voiceSessionId) return;
       hasFinished = true;
 
-      // When this priority challenge audio finishes:
       if (onEnded) onEnded();
 
       // Check if we need to resume interrupted voice
@@ -475,9 +606,12 @@ class AudioEngine {
 
         // Restore currentTime and resume playback
         this.voiceAudio.currentTime = savedState.currentTime;
-        if (savedState.onEnded) {
-          this.voiceAudio.onended = savedState.onEnded;
-        }
+        this.voiceAudio.onended = () => {
+          this.currentVoiceTrackId = null;
+          // Restore ambient volume once the resumed voice also finishes
+          this.applyDucking(false);
+          if (savedState.onEnded) savedState.onEnded();
+        };
 
         const resumePromise = this.voiceAudio.play();
         if (resumePromise !== undefined) {
@@ -488,6 +622,7 @@ class AudioEngine {
         }
       } else {
         // No interrupted audio to resume, return ambient to normal
+        this.currentVoiceTrackId = null;
         this.applyDucking(false);
       }
     };
@@ -571,20 +706,51 @@ class AudioEngine {
     }
   }
 
-  // --- DUCKING MANAGEMENT ---
-  private applyDucking(duck: boolean) {
-    if (this.ambientAudio && !this.ambientAudio.paused) {
-      this.ambientAudio.volume = duck ? this.ambientVolume * 0.15 : this.ambientVolume;
+  // --- DUCKING MANAGEMENT (Smooth crossfade/attenuation during voice events) ---
+  public applyDucking(duck: boolean) {
+    this.isDucked = duck;
+    const targetVol = duck ? this.ambientVolume * 0.20 : this.ambientVolume;
+
+    if (this.ambientAudio) {
+      if (this.duckInterval !== null) {
+        window.clearInterval(this.duckInterval);
+        this.duckInterval = null;
+      }
+
+      const startVol = this.ambientAudio.volume;
+      const steps = 12;
+      const stepDuration = 25; // 300ms total smooth fade
+      let currentStep = 0;
+
+      this.duckInterval = window.setInterval(() => {
+        currentStep++;
+        const progress = currentStep / steps;
+        const newVol = startVol + (targetVol - startVol) * progress;
+        if (this.ambientAudio) {
+          this.ambientAudio.volume = Math.max(0, Math.min(1, newVol));
+        }
+
+        if (currentStep >= steps) {
+          if (this.duckInterval !== null) {
+            window.clearInterval(this.duckInterval);
+            this.duckInterval = null;
+          }
+          if (this.ambientAudio) {
+            this.ambientAudio.volume = Math.max(0, Math.min(1, targetVol));
+          }
+        }
+      }, stepDuration);
     }
+
     if (this.synthGainNode && this.audioCtx && this.isSynthPlaying) {
-      const target = duck ? this.ambientVolume * 0.08 : this.ambientVolume * 0.35;
+      const synthTarget = duck ? this.ambientVolume * 0.08 : this.ambientVolume * 0.35;
       this.synthGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
-      this.synthGainNode.gain.linearRampToValueAtTime(this.isMuted ? 0 : target, this.audioCtx.currentTime + 0.3);
+      this.synthGainNode.gain.linearRampToValueAtTime(this.isMuted ? 0 : synthTarget, this.audioCtx.currentTime + 0.35);
     }
   }
 
   // --- STOP VOICE IMMEDIATELY ---
-  public stopVoice() {
+  public stopVoice(restoreDucking: boolean = true) {
     this.voiceSessionId++;
     this.currentVoiceTrackId = null;
     this.interruptedVoiceState = null;
@@ -613,19 +779,39 @@ class AudioEngine {
         }
       }, 40);
     }
-    this.applyDucking(false);
+    if (restoreDucking) {
+      this.applyDucking(false);
+    }
   }
 
   // --- TEST TRACK INDIVIDUALLY ---
   public testTrack(track: AudioTrackConfig, onStart?: () => void, onEnd?: () => void): Promise<boolean> {
     return new Promise((resolve) => {
-      this.stopVoice();
+      if (track.id === 'ambient') {
+        if (this.shouldAmbientPlay) {
+          this.stopAmbient();
+          if (onEnd) onEnd();
+          resolve(true);
+        } else {
+          this.startAmbient();
+          if (onStart) onStart();
+          setTimeout(() => {
+            if (onEnd) onEnd();
+            resolve(true);
+          }, 3500);
+        }
+        return;
+      }
+
+      this.stopVoice(false);
+      this.applyDucking(true);
       if (onStart) onStart();
 
       const testPlayer = new Audio(this.getTrackSrc(track));
       testPlayer.volume = this.voiceVolume;
 
       const finish = (success: boolean) => {
+        this.applyDucking(false);
         if (onEnd) onEnd();
         resolve(success);
       };

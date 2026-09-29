@@ -1025,14 +1025,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     {/* Test Button */}
                     <button
                       onClick={() => handleTestAudio(track)}
-                      disabled={isTesting}
                       className={`px-3 py-1 rounded font-bold transition-colors cursor-pointer ${
                         isTesting
                           ? 'bg-amber-500 text-black'
                           : 'bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-300'
                       }`}
                     >
-                      {isTesting ? 'Sonando...' : 'TEST'}
+                      {isTesting ? 'Detener' : 'TEST'}
                     </button>
                   </div>
                 </div>
