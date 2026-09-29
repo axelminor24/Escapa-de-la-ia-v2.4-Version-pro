@@ -343,6 +343,10 @@ export default function App() {
 
   // --- PAUSE GAME ---
   const pauseGame = useCallback(() => {
+    if (introSafetyTimerRef.current !== null) {
+      clearTimeout(introSafetyTimerRef.current);
+      introSafetyTimerRef.current = null;
+    }
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
@@ -354,6 +358,9 @@ export default function App() {
       startTimeRef.current = null;
     }
 
+    elapsedSecRef.current = elapsedOffsetRef.current;
+    setElapsedSec(elapsedOffsetRef.current);
+    eventLogService.updateTimeContext(getRemainingTimeStr(elapsedOffsetRef.current), elapsedOffsetRef.current);
     setGameState('PAUSED');
     audioEngine.pauseAmbient();
     audioEngine.stopVoice();
@@ -361,7 +368,7 @@ export default function App() {
     eventLogService.recordStateEvent(
       'PAUSED',
       'Partida Pausada',
-      `Cronómetro congelado a los ${remainingStr} restantes.`,
+      `Cronómetro congelado a los ${getRemainingTimeStr(elapsedOffsetRef.current)} restantes.`,
       'warning',
       'Operador'
     );
@@ -370,7 +377,7 @@ export default function App() {
       type: 'PAUSE',
       gameState: 'PAUSED',
     });
-  }, [broadcast, remainingStr]);
+  }, [broadcast, getRemainingTimeStr]);
 
   // --- RESET GAME ---
   const resetGame = useCallback(() => {

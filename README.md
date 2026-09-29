@@ -1,140 +1,55 @@
-# 🎙️ Estación de Escape Room - Control Maestro y Transmisión
+# Escapa de la IA · Tres pantallas
 
-Sistema integral de cronometraje, transmisión de radio, atenuación automática (ducking) y sincronización de eventos de audio para Escape Rooms.
+Juego para una muestra escolar: un coordinador, una pantalla de cronómetro y un puesto donde resolver cuatro desafíos. La partida dura 15 minutos y termina al abrir el candado final, al agotarse el tiempo o por una orden del coordinador.
 
----
+## Cómo usar el sitio
 
-## ⚡ Novedades y Correcciones Implementadas
+1. En la PC 1, abrir `/control`, ingresar la clave del coordinador y activar el sonido.
+2. Copiar el enlace **PC 2 · Cronómetro** del panel y abrirlo en la segunda computadora.
+3. Copiar el enlace completo **PC 3 · Desafíos** y abrirlo en la tercera. Ese enlace habilita el envío de respuestas.
+4. Registrar el equipo desde los desafíos. Desde el control, iniciar con explicación o iniciar directamente.
+5. Mantener abierto el panel del coordinador, con sus parlantes conectados. Las otras pantallas no reproducen audio.
 
-1. **Salto de Intro Instantáneo y Conteo Preciso:**
-   - Se corrigió el fallo donde el audio de la intro continuaba sonando o la síntesis de voz se disparaba al pulsar saltar.
-   - Ahora al saltar la intro, se cancela inmediatamente cualquier locución en curso (`Audio` o `SpeechSynthesis`), se inicia el bucle de sonido ambiental continuo y el cronómetro comienza a descontar a partir de 15:00 sin retrasos.
-   - Dos modos de inicio disponibles:
-     - **▶ Iniciar con Explicación (Intro):** reproduce las reglas y al terminar arranca la cuenta regresiva.
-     - **⚡ Iniciar Directo (Sin Intro):** arranca el cronómetro de 15:00 de inmediato.
-     - **⏩ Botón "Saltar Intro e Iniciar Cuenta Ya":** disponible en panel y en pantalla de jugador (o presionando [Enter] / [Espacio]).
+El sitio publicado requiere Internet en las tres computadoras. No necesitan iniciar sesión en ChatGPT. Hay una sola partida compartida por sitio: las pestañas adicionales también muestran esa partida.
 
-2. **Efecto de Códigos de Error Cayendo (Matrix / Terminal Glitch):**
-   - En la vista del jugador (`Modo Jugador / Proyector`), se visualizan flujos de códigos de error del sistema cayendo de arriba hacia abajo (memoria corrupta, `0xDEADBEEF`, `LOCKDOWN_ACTIVE`, `KERNEL_PANIC`, `CIPHER_FAIL`, etc.) con cabezales brillantes y líneas de escaneo CRT inmersivas.
-   - Responde dinámicamente al estado del juego:
-     - Normal / Intro: flujos carmesí de terminal de seguridad.
-     - Modo Crítico (< 3 minutos): lluvia hiper-rápida con ráfagas rojas y destellos blancos.
-     - Victoria: cascada verde esmeralda con `ACCESS_GRANTED`, `SYSTEM_RESTORED` y `ESCAPE_CONFIRMED`.
+El cronómetro pertenece al servidor. Recargar una pantalla conserva la partida. Pausar, reanudar y reiniciar se propaga a las tres pantallas. El cuarto desafío revela el último dígito, pero la cuenta sigue hasta abrir el candado.
 
-3. **Panel de Vinculación con API Externa & Hardware:**
-   - Panel interactivo para enlazar con cualquier backend (Node.js, Python Flask/FastAPI, Arduino, ESP32, Raspberry Pi) mediante:
-     - **HTTP REST Polling:** la emisora consulta periódicamente tu endpoint.
-     - **WebSockets:** sincronización bidireccional en tiempo real sin latencia.
-     - **Webhooks:** la emisora notifica a tu servidor cada segundo y ante cambios de estado.
-     - **Probador de Conexión (Ping):** mide latencia en milisegundos y muestra la respuesta en vivo.
-     - **Simulador de eventos:** prueba la resolución de desafíos desde la interfaz.
+Si se pierde conexión, las pantallas avisan y los desafíos no aceptan envíos hasta reconectarse. En el sitio web el reloj continúa: el coordinador puede pausar cuando conserve conexión. Los borradores de respuestas permanecen en el mismo navegador cuando el desafío sigue vigente.
 
-4. **Preparado para GitHub y GitHub Pages:**
-   - `vite.config.ts` configurado con `base: './'` para funcionar en cualquier subdirectorio de GitHub Pages.
-   - Flujo de GitHub Actions en `.github/workflows/deploy.yml` para despliegue automatizado.
-   - Archivo `public/.nojekyll` incluido.
+### Audio y registros
 
----
+Se conserva el mezclador, la carga de MP3 del repositorio original y las descargas JSON/CSV. Cargar los audios en la PC del coordinador antes de iniciar. Sin archivos, se usan voz y ambiente sintetizados cuando el navegador los permite. El fin de la explicación inicia la cuenta; el coordinador también puede saltarla. Probar el sonido antes de la muestra.
 
-## 🚀 Despliegue en GitHub y GitHub Pages
+## Desarrollo
 
-### Pasos para subirlo a tu cuenta de GitHub:
-1. Crea un nuevo repositorio en tu cuenta de [GitHub](https://github.com/new).
-2. En tu terminal local, sube el proyecto:
-```bash
-git init
-git add .
-git commit -m "Initial commit - Escape Room Station"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/TU_REPOSITORIO.git
-git push -u origin main
+Usar Node.js 24 y las dependencias de `package-lock.json`.
+
+```sh
+npm ci
+npm run test:site
+npm run build:site
+npm run preview:site
 ```
-3. En GitHub, ve a **Settings > Pages** y en **Source** selecciona **GitHub Actions**.
-4. ¡Listo! En 1 minuto tu aplicación estará disponible públicamente en `https://TU_USUARIO.github.io/TU_REPOSITORIO/`.
 
----
+La vista previa usa una base de datos temporal que se borra al cerrar el proceso. La clave de prueba predeterminada está en `network/preview-site.mjs`; se puede reemplazar mediante la variable `CONTROL_KEY`. No usar la clave de prueba en producción.
 
-## 💻 Ejecución Local
+### Publicación en Sites
 
-1. Instalar dependencias:
-```bash
-npm install
+`npm run build:site` genera `dist/server/index.js`, las páginas y las migraciones. El servidor es compatible con Cloudflare Workers y utiliza D1 para conservar la partida. `.openai/hosting.json` mantiene la identidad del sitio y la vinculación lógica `DB`. Las migraciones están en `drizzle/` y el esquema en `db/schema.ts`.
+
+Configurar en Sites dos secretos: `CONTROL_KEY` (clave elegida por el coordinador) y `SESSION_KEY` (valor aleatorio de al menos 24 caracteres). Las claves nunca se incorporan a los archivos públicos. Las sesiones expiran a las 24 horas, el acceso tiene límite de intentos y las órdenes se validan en el servidor. Los enlaces de participantes no otorgan permiso de coordinación.
+
+La publicación de Sites usa el código guardado en su propio repositorio de fuentes. La acción de GitHub Pages conserva la versión original para una sola computadora; no ejecuta el servidor de la partida compartida.
+
+### Alternativa en la red del salón
+
+```sh
+npm run build
+npm run start:lan
 ```
-2. Iniciar servidor de desarrollo:
-```bash
-npm run dev
-```
-3. Abre tu navegador en `http://localhost:3000`.
 
----
+En la PC principal abrir `http://localhost:3210/control`. El programa muestra los enlaces con la dirección de esa PC para las otras dos computadoras de la misma red. En este modo solo la PC principal puede habilitar el control. La partida se guarda en `.local-data/session.json`; al reiniciar el programa, se recupera en pausa.
 
-## 🔑 Credenciales de Administrador
+## Comprobaciones
 
-- **Usuario:** `ISP20`
-- **Contraseña:** `sanjusto`
-
----
-
-## 🔊 Organización de Audios
-
-La emisora buscará automáticamente los archivos MP3 con los siguientes nombres (o puedes cargarlos directamente desde el panel de administrador usando el botón **"Elegir archivo"** o **"Arrastrar y soltar"**):
-
-1. `Audio-de-ambiente.mp3` - Ambiente envolvente continuo en bucle.
-2. `Inicio-de-juegos-explicacion-de-desafios.mp3` - Reglas y bienvenida inicial.
-3. `Desafio-1-completado.mp3` - Audio al superar el Desafío 1 (superpone y reanuda el audio previo).
-4. `Desafio-2-completado.mp3` - Audio al superar el Desafío 2 (superpone y reanuda el audio previo).
-5. `Desafio-3-completado.mp3` - Audio al superar el Desafío 3 (superpone y reanuda el audio previo).
-6. `Desafio-4-completado.mp3` - Audio al superar el Desafío 4 (desencadena la victoria inmediata).
-7. `Minuto-5-con-desafio-completado.mp3` - Evaluación minuto 5 (si llevan $\ge 1$ desafío superado).
-8. `Minuto-5-sin-desafios-completados.mp3` - Evaluación minuto 5 (si llevan 0 desafíos superados).
-9. `Mitad-de-tiempo-consumido-etapa-media.mp3` - Alerta al minuto 07:30.
-10. `Tres-minutos-restantes-presion.mp3` - Alerta de presión al minuto 12:00 (últimos 3 minutos).
-11. `Tiempo-agotado-Fin-del-juego.mp3` - Derrota al expirar los 15 minutos.
-12. `Tiempo-terminado-Desafio-completo_1 (1).mp3` - Victoria total al completar los 4 desafíos.
-
----
-
-## 📜 Registro de Eventos en Tiempo Real (Event Log)
-
-El panel de administración cuenta con una sección visual auditada de **Event Log** que registra con marcas de tiempo precisas todos los acontecimientos de la partida:
-- **Hora real (Wall clock)**: e.g. `21:05:42` (hora del sistema).
-- **Tiempo de juego**: Cuenta regresiva restante (e.g. `⏱️ 14:15`) y segundos transcurridos (`+00:45`).
-- **Categorías con códigos de color e iconos:**
-  - 🎯 **Desafíos (CHALLENGE):** Registro instantáneo cuando se resuelve o desmarca cada desafío (1 a 4).
-  - ⏯️ **Estado (STATE):** Inicio con intro, salto de intro, cuenta regresiva, pausas, reanudaciones, reinicios, victoria y derrota.
-  - 🔊 **Audios (AUDIO):** Activación de ambiente, pistas narradas, superposiciones prioritarias de desafío con interrupción y reanudación automática, o pruebas manuales.
-  - ⏱️ **Hitos (TIMELINE):** Evaluación del minuto 5 (con avance / sin avance), alerta de mitad de tiempo (07:30) y últimos 3 minutos (12:00).
-  - ⚙️ **Sistema (SYSTEM):** Diagnósticos, cargas de archivos de audio locales y limpiezas de historial.
-- **Herramientas del Event Log:**
-  - **Botón Descargar JSON:** Descarga el historial estructurado en formato `.json` para análisis programático o archivo.
-  - **Botón Descargar CSV:** Descarga el archivo `.csv` (con codificación UTF-8 BOM) compatible con Microsoft Excel, Apple Numbers o Google Sheets.
-  - **Filtros instantáneos** por categoría (`Todos`, `Desafíos`, `Estado`, `Audios`, `Hitos`, `Sistema`).
-  - **Buscador de texto** en tiempo real.
-  - **Modo auto-scroll** para seguir en directo los nuevos eventos.
-  - **Copiar Historial** directo al portapapeles.
-  - Visualización integrada en el panel principal (plegable) y pestaña expandida.
-
----
-
-## 🚀 Despliegue en GitHub Pages y Solución del Error 404
-
-### ¿Por qué ocurrió el error `HttpError: Not Found Failed to create deployment (status: 404)`?
-En GitHub, cuando se usa la acción oficial `actions/deploy-pages@v4`, GitHub requiere que **GitHub Pages esté habilitado** en la configuración del repositorio. Si el repositorio es nuevo o Pages no se ha inicializado todavía, la API de GitHub devuelve un error 404:
-`Failed to create deployment (status: 404) ... Ensure GitHub Pages has been enabled: https://github.com/.../settings/pages`
-
-### Solución Definitiva Implementada:
-1. **Despliegue dual automático (`.github/workflows/deploy.yml`):**
-   - El workflow compila la aplicación y la publica automáticamente en la rama **`gh-pages`** (usando `peaceiris/actions-gh-pages@v4`). Esta rama **nunca falla con 404**, incluso si Pages no está configurado en GitHub Actions.
-   - Además, sube el artefacto a **GitHub Pages** mediante `actions/deploy-pages@v4` con `continue-on-error: true` para que ningún ajuste pendiente rompa el flujo de trabajo en Actions.
-2. **Compatibilidad total de rutas relativas:**
-   - Se configuró `base: './'` en `vite.config.ts`.
-   - Se incluye el archivo `public/.nojekyll` para evitar que el motor Jekyll de GitHub bloquee archivos CSS/JS.
-
-### Paso Único para Activar GitHub Pages (Toma 10 segundos):
-1. Entra a tu repositorio:
-   👉 **https://github.com/axelminor24/Escapa-de-la-ia-v2.4-Version-pro/settings/pages**
-2. En la sección **Build and deployment**:
-   - En **Source**, selecciona: **GitHub Actions** *(o selecciona la rama **gh-pages**)*.
-3. ¡Listo! Tu juego quedará publicado en vivo en:
-   👉 **https://axelminor24.github.io/Escapa-de-la-ia-v2.4-Version-pro/**
-
+Las pruebas cubren reloj y pausas, caducidad, cuatro desafíos y candado, pistas, reinicios, recuperación local, tres clientes HTTP, concurrencia en el servidor web, peticiones repetidas y permisos de coordinación/participantes. `network/preview-site.mjs` sirve el mismo resultado compilado usando SQLite temporal para probarlo localmente.

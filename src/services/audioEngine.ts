@@ -56,13 +56,13 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
   {
     id: 'challenge_4',
     defaultName: 'Desafio-4-completado.mp3',
-    title: 'Desafío 4 Completado (Victoria)',
+    title: 'Desafío 4 Completado',
     triggerTimeSec: null,
     keywords: ['desafio-4', 'desafio 4', 'enigma 4', 'reto 4', 'completado-4', 'tiempo-terminado-desafio'],
-    fallbackText: '¡Increíble! Han completado el cuarto y último desafío. Las puertas se desbloquean. ¡Han logrado escapar a tiempo!',
+    fallbackText: '¡Increíble! Han completado el cuarto desafío. Ahora reúnan los cuatro números y abran el candado final para escapar.',
     fired: false,
     conditionType: 'none',
-    conditionLabel: 'Se reproduce al completar el Desafío 4 (Victoria)',
+    conditionLabel: 'Se reproduce al completar el Desafío 4',
   },
   {
     id: 'min5_progress',
@@ -173,6 +173,10 @@ class AudioEngine {
     if (this.synthGainNode && this.audioCtx) {
       this.synthGainNode.gain.setValueAtTime(muted ? 0 : this.ambientVolume * 0.35, this.audioCtx.currentTime);
     }
+  }
+
+  public prepare() {
+    this.initAudioContext();
   }
 
   public setAmbientVolume(vol: number) {
@@ -605,9 +609,10 @@ class AudioEngine {
     }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
+      const stoppedSession = this.voiceSessionId;
       setTimeout(() => {
         try {
-          window.speechSynthesis?.cancel();
+          if (this.voiceSessionId === stoppedSession) window.speechSynthesis?.cancel();
         } catch {
           // ignore
         }

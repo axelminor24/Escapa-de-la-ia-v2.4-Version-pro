@@ -9,6 +9,7 @@ interface PlayerViewProps {
   isCritical: boolean;
   challenges: ChallengesState;
   onTriggerStart: (skipIntro?: boolean) => void;
+  readOnly?: boolean;
 }
 
 export const PlayerView: React.FC<PlayerViewProps> = ({
@@ -17,13 +18,14 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   isCritical,
   challenges,
   onTriggerStart,
+  readOnly = false,
 }) => {
   const isVictory = gameState === 'VICTORY';
   const isGameOver = gameState === 'GAMEOVER';
   const isIntro = gameState === 'INTRO';
 
   // Subtitle messages based on state
-  let statusMessage = 'PRESIONA [ESPACIO] O [ENTER] PARA COMENZAR';
+  let statusMessage = readOnly ? 'ESPERANDO AL COORDINADOR' : 'PRESIONA [ESPACIO] O [ENTER] PARA COMENZAR';
   if (isIntro) {
     statusMessage = 'REPRODUCIENDO EXPLICACIÓN DE REGLAS';
   } else if (gameState === 'RUNNING') {
@@ -39,10 +41,10 @@ export const PlayerView: React.FC<PlayerViewProps> = ({
   return (
     <div
       onClick={() => {
+        if (readOnly) return;
         if (gameState === 'IDLE' || gameState === 'PAUSED') {
           onTriggerStart(false);
-        } else if (gameState === 'INTRO') {
-          onTriggerStart(true);
+
         }
       }}
       className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-6 select-none transition-colors duration-700 z-50 overflow-hidden cursor-default ${

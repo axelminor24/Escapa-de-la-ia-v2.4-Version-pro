@@ -34,6 +34,7 @@ import { EventLog } from './EventLog';
 import { eventLogService } from '../services/eventLogService';
 
 interface AdminViewProps {
+  networkMode?: boolean;
   remainingStr: string;
   elapsedSec: number;
   totalSec: number;
@@ -50,6 +51,7 @@ interface AdminViewProps {
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({
+  networkMode = false,
   remainingStr,
   elapsedSec,
   totalSec,
@@ -380,7 +382,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 Comandos de Control
               </h2>
               <p className="text-xs text-slate-400">
-                Presiona <strong className="text-white">ESPACIO</strong> o <strong className="text-white">ENTER</strong> en cualquier pantalla para iniciar o saltar la intro.
+                {networkMode ? 'Esta computadora controla el inicio, la pausa y el reinicio de las tres pantallas.' : <>Presiona <strong className="text-white">ESPACIO</strong> o <strong className="text-white">ENTER</strong> en cualquier pantalla para iniciar o saltar la intro.</>}
               </p>
             </div>
 
@@ -472,7 +474,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 Estado de los 4 Desafíos (Escape Room)
               </h2>
               <p className="text-xs text-slate-400">
-                Al completarse cada desafío sonará su audio específico, interrumpiendo y reanudando la transmisión. Al llegar al 4º, se activará <strong>inmediatamente</strong> la victoria.
+                {networkMode ? 'Cada puesto recuperado activa su audio. La victoria llega al abrir el candado final. Desmarcar un puesto vuelve a bloquear los posteriores.' : <>Al completarse cada desafío sonará su audio específico, interrumpiendo y reanudando la transmisión. Al llegar al 4º, se activará <strong>inmediatamente</strong> la victoria.</>}
               </p>
             </div>
 
@@ -909,7 +911,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-emerald-300 flex items-center gap-1.5">
                           <CheckCircle2 className={`w-3.5 h-3.5 ${isSolved ? 'text-emerald-400' : 'text-slate-500'}`} />
-                          Desafío {num}: {num === 4 ? 'Superado (Victoria)' : 'Superado'}
+                          Desafío {num}: {num === 4 && !networkMode ? 'Superado (Victoria)' : 'Superado'}
                         </span>
                         {isSolved && (
                           <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500 text-black">

@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1790683444916,
+      "tag": "0000_silky_randall_flagg",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790684078103,
+      "tag": "0001_lucky_next_avengers",
+      "breakpoints": true
+    }
+  ]
+}
