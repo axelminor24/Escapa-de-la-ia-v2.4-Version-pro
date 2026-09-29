@@ -11,7 +11,7 @@ const source = stripTypeScriptTypes(readFileSync(new URL('../src/services/audioE
 
 function setup() {
   const players = [], timers = new Map();
-  let id = 0, oscillatorStarts = 0;
+  let id = 0, oscillatorStarts = 0, oscillatorStops = 0;
   class Audio {
     paused = true;
     volume = 1;
@@ -24,7 +24,7 @@ function setup() {
     pause() { this.paused = true; }
   }
   const param = () => ({ setValueAtTime() {}, cancelScheduledValues() {}, linearRampToValueAtTime() {} });
-  const node = () => ({ gain: param(), frequency: param(), Q: param(), detune: param(), connect() {}, disconnect() {}, stop() {}, start() { oscillatorStarts++; } });
+  const node = () => ({ gain: param(), frequency: param(), Q: param(), detune: param(), connect() {}, disconnect() {}, stop() { oscillatorStops++; }, start() { oscillatorStarts++; } });
   class AudioContext {
     state = 'running'; currentTime = 0;
     createGain = node; createBiquadFilter = node; createOscillator = node;
@@ -34,7 +34,7 @@ function setup() {
   const clearTimeout = (key) => timers.delete(key);
   const window = { AudioContext, addEventListener() {}, removeEventListener() {}, setInterval: setTimeout, clearInterval: clearTimeout, setTimeout };
   vm.runInNewContext(source, { exports, eventLogService: { recordAudioEvent() {} }, window, Audio, setTimeout, clearTimeout, console });
-  return { ...exports, players, timers, starts: () => oscillatorStarts };
+  return { ...exports, players, timers, starts: () => oscillatorStarts, activeOscillators: () => oscillatorStarts - oscillatorStops };
 }
 
 test('stopping a voice test stops its player and ignores a late failure', async () => {
@@ -78,4 +78,36 @@ test('a shared pause cancels an ambient preview and clears its stop timer', asyn
   audioEngine.pauseAmbient();
   assert.equal(await result, false);
   assert.equal([...timers.values()].some(t => t.ms === 3500), false);
+});
+
+test('a playing default audio file never gets a synthesized layer added by the watchdog', () => {
+  const { audioEngine, players, timers, starts } = setup();
+  audioEngine.startAmbient();
+  players[0].currentTime = 4;
+  players[0].onplaying();
+  [...timers.values()].find(t => t.ms === 2000).fn();
+  audioEngine.startAmbient();
+  assert.equal(starts(), 0);
+});
+
+test('a file that starts after fallback takes over exclusively', () => {
+  const { audioEngine, players, activeOscillators } = setup();
+  audioEngine.startAmbient();
+  players[0].onerror();
+  assert.ok(activeOscillators() > 0);
+  assert.equal(players[0].paused, true);
+  players[0].paused = false;
+  players[0].onplaying();
+  assert.equal(activeOscillators(), 0);
+});
+
+test('a late error from the previous file cannot add fallback over a new upload', async () => {
+  const { audioEngine, players, starts } = setup();
+  audioEngine.startAmbient();
+  const rejectOldFile = players[0].rejectPlay;
+  audioEngine.setTrackBlobUrl('ambient', 'blob:uploaded-ambient');
+  rejectOldFile(new Error('old file missing'));
+  await Promise.resolve();
+  assert.equal(players[0].src, 'blob:uploaded-ambient');
+  assert.equal(starts(), 0);
 });

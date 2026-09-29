@@ -155,6 +155,7 @@ class AudioEngine {
   private duckInterval: number | null = null;
   private ambientKeepaliveInterval: number | null = null;
   private shouldAmbientPlay = false;
+  private ambientSessionId = 0;
   private finishTest: ((success: boolean) => void) | null = null;
   private testingAmbient = false;
 
@@ -192,7 +193,7 @@ class AudioEngine {
     if (this.voiceAudio) this.voiceAudio.muted = muted;
     if (this.priorityVoiceAudio) this.priorityVoiceAudio.muted = muted;
     if (this.synthGainNode && this.audioCtx) {
-      const target = this.isDucked ? this.ambientVolume * 0.18 : this.ambientVolume * 0.70;
+      const target = this.isDucked ? this.ambientVolume * 0.07 : this.ambientVolume * 0.28;
       this.synthGainNode.gain.setValueAtTime(muted ? 0 : target, this.audioCtx.currentTime);
     }
   }
@@ -207,7 +208,7 @@ class AudioEngine {
       this.ambientAudio.volume = this.isDucked ? this.ambientVolume * 0.20 : this.ambientVolume;
     }
     if (this.synthGainNode && this.audioCtx) {
-      const target = this.isDucked ? this.ambientVolume * 0.18 : this.ambientVolume * 0.70;
+      const target = this.isDucked ? this.ambientVolume * 0.07 : this.ambientVolume * 0.28;
       this.synthGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
       this.synthGainNode.gain.setValueAtTime(this.isMuted ? 0 : target, this.audioCtx.currentTime);
     }
@@ -245,11 +246,13 @@ class AudioEngine {
     }
     if (trackId === 'ambient') {
       if (this.shouldAmbientPlay) {
+        this.ambientSessionId++;
         this.stopSynthDrone();
         if (this.ambientAudio) {
+          this.ambientAudio.onerror = null;
           this.ambientAudio.src = url;
           this.ambientAudio.loop = true;
-          this.ambientAudio.play().catch(() => {});
+          this.startAmbient();
         }
       }
     }
@@ -274,6 +277,10 @@ class AudioEngine {
   // --- AMBIENT SOUND (Continuous 15-minute Background) ---
   public startAmbient() {
     this.shouldAmbientPlay = true;
+    const sessionId = ++this.ambientSessionId;
+    const fallback = () => {
+      if (this.shouldAmbientPlay && sessionId === this.ambientSessionId) this.startSynthDrone();
+    };
 
     // Ensure AudioContext is ready and resumed
     const ctx = this.initAudioContext();
@@ -289,26 +296,23 @@ class AudioEngine {
       this.ambientAudio.loop = true;
 
       // Handle missing file (e.g. 404 when Audio-de-ambiente.mp3 is not uploaded)
-      this.ambientAudio.onerror = () => {
-        if (!hasCustom) {
-          console.info('No custom ambient file found. Playing high-quality procedural escape room drone.');
-          this.startSynthDrone();
-        }
+      this.ambientAudio.onerror = fallback;
+      this.ambientAudio.onplaying = () => {
+        if (this.shouldAmbientPlay && sessionId === this.ambientSessionId) this.stopSynthDrone();
+        else this.ambientAudio?.pause();
       };
 
       // Check if ambient already has this source loaded
       const currentSrc = this.ambientAudio.src;
-      const isSameSrc = currentSrc && (currentSrc === src || currentSrc.endsWith(encodeURI(ambientTrack.defaultName)));
+      const isSameSrc = currentSrc && (currentSrc === src || !hasCustom && currentSrc.endsWith(encodeURI(ambientTrack.defaultName)));
 
       if (isSameSrc) {
         if (this.ambientAudio.paused && !this.ambientAudio.error) {
           const playPromise = this.ambientAudio.play();
           if (playPromise !== undefined) {
-            playPromise.catch(() => {
-              this.startSynthDrone();
-            });
+            playPromise.catch(fallback);
           }
-        } else if (this.ambientAudio.error || !hasCustom) {
+        } else if (this.ambientAudio.error) {
           if (!this.isSynthPlaying) {
             this.startSynthDrone();
           }
@@ -330,22 +334,7 @@ class AudioEngine {
 
       const playPromise = this.ambientAudio.play();
       if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          this.startSynthDrone();
-        });
-      }
-
-      // If no custom audio was uploaded yet, verify file or trigger procedural atmosphere
-      if (!hasCustom) {
-        setTimeout(() => {
-          if (
-            this.shouldAmbientPlay &&
-            !this.isSynthPlaying &&
-            (!this.ambientAudio || this.ambientAudio.paused || this.ambientAudio.error || this.ambientAudio.currentTime === 0)
-          ) {
-            this.startSynthDrone();
-          }
-        }, 250);
+        playPromise.catch(fallback);
       }
 
       this.startAmbientWatchdog();
@@ -358,10 +347,13 @@ class AudioEngine {
     if (this.ambientKeepaliveInterval !== null) return;
     this.ambientKeepaliveInterval = window.setInterval(() => {
       if (this.shouldAmbientPlay && !this.isMuted) {
-        if (this.hasCustomAudio('ambient') && this.ambientAudio && !this.ambientAudio.error) {
+        if (this.isSynthPlaying) {
+          this.initAudioContext();
+        } else if (this.ambientAudio && !this.ambientAudio.error) {
           if (this.ambientAudio.paused) {
+            const sessionId = this.ambientSessionId;
             this.ambientAudio.play().catch(() => {
-              this.startSynthDrone();
+              if (sessionId === this.ambientSessionId) this.startSynthDrone();
             });
           }
         } else if (!this.isSynthPlaying) {
@@ -379,6 +371,7 @@ class AudioEngine {
   }
 
   public pauseAmbient() {
+    this.ambientSessionId++;
     this.shouldAmbientPlay = false;
     this.stopAmbientWatchdog();
     if (this.ambientAudio) {
@@ -389,6 +382,7 @@ class AudioEngine {
   }
 
   public stopAmbient() {
+    this.ambientSessionId++;
     this.shouldAmbientPlay = false;
     this.stopAmbientWatchdog();
     if (this.duckInterval !== null) {
@@ -425,26 +419,24 @@ class AudioEngine {
 
     try {
       this.stopSynthDrone();
+      this.ambientAudio?.pause();
 
       const masterGain = ctx.createGain();
-      const initialGain = this.isDucked ? this.ambientVolume * 0.18 : this.ambientVolume * 0.70;
-      masterGain.gain.setValueAtTime(this.isMuted ? 0 : initialGain, ctx.currentTime);
+      const initialGain = this.isDucked ? this.ambientVolume * 0.07 : this.ambientVolume * 0.28;
+      masterGain.gain.setValueAtTime(0, ctx.currentTime);
+      masterGain.gain.linearRampToValueAtTime(initialGain, ctx.currentTime + 0.8);
 
-      // Resonant Lowpass Filter for dark, atmospheric bunker tension
+      // Gentle filtering avoids the metallic resonance of the previous fallback.
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
       filter.frequency.setValueAtTime(550, ctx.currentTime);
-      filter.Q.setValueAtTime(2.2, ctx.currentTime);
+      filter.Q.setValueAtTime(0.5, ctx.currentTime);
 
-      // Multi-layer cinematic tension chords:
-      // D2 (73.4Hz), A2 (110Hz), D3 (146.8Hz), F3 (174.6Hz), A3 (220Hz), C4 (261.6Hz)
+      // A quiet open fifth with no detuning or harsh sawtooth harmonics.
       const voicesConfig: Array<{ freq: number; type: OscillatorType; gain: number; detune: number }> = [
-        { freq: 73.4, type: 'sine', gain: 0.28, detune: 0 },
-        { freq: 110.0, type: 'triangle', gain: 0.25, detune: -4 },
-        { freq: 146.8, type: 'sawtooth', gain: 0.20, detune: +3 },
-        { freq: 174.6, type: 'sine', gain: 0.16, detune: -6 },
-        { freq: 220.0, type: 'triangle', gain: 0.14, detune: +5 },
-        { freq: 261.6, type: 'sine', gain: 0.12, detune: +2 },
+        { freq: 110.0, type: 'sine', gain: 0.30, detune: 0 },
+        { freq: 165.0, type: 'sine', gain: 0.13, detune: 0 },
+        { freq: 220.0, type: 'sine', gain: 0.07, detune: 0 },
       ];
 
       this.synthOscillators = [];
@@ -464,11 +456,11 @@ class AudioEngine {
         this.synthOscillators.push(osc);
       });
 
-      // Slow Breathing LFO to modulate filter cutoff (from ~380Hz to ~950Hz over 7 seconds)
+      // Subtle, slow movement rather than a pronounced pulsing buzz.
       const lfo = ctx.createOscillator();
-      lfo.frequency.setValueAtTime(0.14, ctx.currentTime); // ~7.1s wave
+      lfo.frequency.setValueAtTime(0.08, ctx.currentTime);
       const lfoGain = ctx.createGain();
-      lfoGain.gain.setValueAtTime(260, ctx.currentTime); // Modulation depth
+      lfoGain.gain.setValueAtTime(30, ctx.currentTime);
       lfo.connect(lfoGain);
       lfoGain.connect(filter.frequency);
       lfo.start();
@@ -750,7 +742,7 @@ class AudioEngine {
     }
 
     if (this.synthGainNode && this.audioCtx && this.isSynthPlaying) {
-      const synthTarget = duck ? this.ambientVolume * 0.18 : this.ambientVolume * 0.70;
+      const synthTarget = duck ? this.ambientVolume * 0.07 : this.ambientVolume * 0.28;
       this.synthGainNode.gain.cancelScheduledValues(this.audioCtx.currentTime);
       this.synthGainNode.gain.linearRampToValueAtTime(this.isMuted ? 0 : synthTarget, this.audioCtx.currentTime + 0.35);
     }
