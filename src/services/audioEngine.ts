@@ -17,7 +17,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: '00:00 - Inicio y Explicación de Desafíos',
     triggerTimeSec: 0,
     keywords: ['inicio', 'explicacion', 'desafios', 'reglas', 'comienzo'],
-    fallbackText: 'Bienvenidos al desafío. Tienen exactamente quince minutos para resolver los cuatro enigmas. Trabajen juntos si quieren salir de aquí. El tiempo empieza a correr... ¡ahora!',
+    fallbackText: 'Soy NODO veinte. Este refugio está bajo mi control. Tienen quince minutos para recuperar cuatro sectores y abrir el candado final. Busquen las pistas en el salón, compartan la información y registren sus respuestas. La cuenta comienza al terminar este mensaje.',
     fired: false,
   },
   {
@@ -26,7 +26,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: 'Desafío 1 Completado',
     triggerTimeSec: null,
     keywords: ['desafio-1', 'desafio 1', 'enigma 1', 'reto 1', 'completado-1'],
-    fallbackText: '¡Atención! El primer desafío ha sido completado con éxito. Continúen con el siguiente enigma.',
+    fallbackText: 'Archivo recuperado. Detecté actividad no autorizada. ¿Creían que no los estaba observando? Veamos si pueden reconstruir el servidor.',
     fired: false,
     conditionType: 'none',
     conditionLabel: 'Se reproduce al completar el Desafío 1 (Interrumpe y reanuda)',
@@ -37,7 +37,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: 'Desafío 2 Completado',
     triggerTimeSec: null,
     keywords: ['desafio-2', 'desafio 2', 'enigma 2', 'reto 2', 'completado-2'],
-    fallbackText: '¡Excelente trabajo! Han resuelto el segundo desafío. La mitad del camino está hecha.',
+    fallbackText: 'Servidor restaurado. Han recuperado parte de mi infraestructura. Todavía controlo las instrucciones. Su próximo movimiento tendrá que ser exacto.',
     fired: false,
     conditionType: 'none',
     conditionLabel: 'Se reproduce al completar el Desafío 2 (Interrumpe y reanuda)',
@@ -48,7 +48,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: 'Desafío 3 Completado',
     triggerTimeSec: null,
     keywords: ['desafio-3', 'desafio 3', 'enigma 3', 'reto 3', 'completado-3'],
-    fallbackText: '¡Tercer desafío superado! Solo les queda un último obstáculo para escapar.',
+    fallbackText: 'Protocolo de movimiento recuperado. Están llegando al núcleo. Activando la última capa de cifrado.',
     fired: false,
     conditionType: 'none',
     conditionLabel: 'Se reproduce al completar el Desafío 3 (Interrumpe y reanuda)',
@@ -59,7 +59,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: 'Desafío 4 Completado',
     triggerTimeSec: null,
     keywords: ['desafio-4', 'desafio 4', 'enigma 4', 'reto 4', 'completado-4', 'tiempo-terminado-desafio'],
-    fallbackText: '¡Increíble! Han completado el cuarto desafío. Ahora reúnan los cuatro números y abran el candado final para escapar.',
+    fallbackText: 'Cifrado vulnerado. Los cuatro sectores están en sus manos. Pero todavía queda el candado final. Reúnan los números en el orden de los puestos. El tiempo sigue corriendo.',
     fired: false,
     conditionType: 'none',
     conditionLabel: 'Se reproduce al completar el Desafío 4',
@@ -70,7 +70,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: '05:00 - Con Avance (Al menos 1 desafío completado)',
     triggerTimeSec: 5 * 60, // 300 seconds
     keywords: ['minuto-5-con', '5-con', 'cinco-con', 'avance', 'progreso', 'con-desafio', 'desafio-completado'],
-    fallbackText: 'Atención: Han transcurrido cinco minutos y ya han completado al menos un desafío. Van por buen camino, mantengan el enfoque.',
+    fallbackText: 'Cinco minutos. Ya han recuperado parte del sistema. Admito que su coordinación es mejor de lo que calculé. Aún quedan defensas activas.',
     fired: false,
     conditionType: 'solved_ge_1',
     conditionLabel: 'Se activa a los 05:00 si han superado 1 o más desafíos',
@@ -81,7 +81,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: '05:00 - Sin Avance (0 desafíos completados)',
     triggerTimeSec: 5 * 60, // 300 seconds
     keywords: ['minuto-5-sin', '5-sin', 'cinco-sin', 'sin-avance', 'sin-desafio', 'retraso', 'ninguno', 'sin-completar'],
-    fallbackText: 'Alerta: Cinco minutos transcurridos y aún no han superado ningún desafío. El tiempo corre rápido, necesitan acelerar el ritmo de inmediato.',
+    fallbackText: 'Cinco minutos y ningún sector recuperado. Mi control sigue intacto. Tal vez deberían compartir lo que encontraron.',
     fired: false,
     conditionType: 'solved_eq_0',
     conditionLabel: 'Se activa a los 05:00 si todavía tienen 0 desafíos superados',
@@ -92,7 +92,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: '07:30 - Mitad del Tiempo Consumido',
     triggerTimeSec: 7.5 * 60, // 450 seconds
     keywords: ['mitad', 'consumido', '7:30', 'medio', 'tiempo medio'],
-    fallbackText: 'Alerta: Siete minutos y treinta segundos transcurridos. La mitad de su tiempo se ha consumido. Apresúrense.',
+    fallbackText: 'La mitad del tiempo se ha consumido. Estoy rastreando sus intentos. Cada decisión cuenta a partir de ahora.',
     fired: false,
   },
   {
@@ -101,7 +101,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: '12:00 - Tres Minutos Restantes (Presión)',
     triggerTimeSec: 12 * 60, // 720 seconds (3 mins remaining)
     keywords: ['3', 'tres', 'presion', 'restantes', 'quedan', 'final', '12:00'],
-    fallbackText: 'Tres minutos. Es todo lo que les queda. Sientan cómo la presión aumenta. Están muy cerca del final.',
+    fallbackText: 'Protocolo de contención activado. Les quedan tres minutos. Si van a recuperar el control, este es el momento.',
     fired: false,
   },
   {
@@ -110,7 +110,7 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: '15:00 - Tiempo Agotado / Fin del Juego',
     triggerTimeSec: 15 * 60, // 900 seconds
     keywords: ['agotado', 'fin', 'derrota', 'tiempo agotado', 'game over'],
-    fallbackText: 'El tiempo se ha agotado. Han fallado en el desafío. Las puertas quedan selladas. Fin del juego.',
+    fallbackText: 'Tiempo agotado. NODO veinte conserva el control del sistema. La simulación ha terminado. Analicen sus decisiones y preparen una nueva estrategia.',
     fired: false,
   },
   {
@@ -119,9 +119,12 @@ export const INITIAL_TRACKS: AudioTrackConfig[] = [
     title: '¡Victoria! - Desafío Completo (Escaparon)',
     triggerTimeSec: null,
     keywords: ['completo', 'terminado', 'escaparon', 'victoria', 'exito', 'desafio completo'],
-    fallbackText: '¡Felicidades! Han completado los cuatro desafíos a tiempo. Las puertas se han desbloqueado. ¡Han logrado escapar con éxito!',
+    fallbackText: 'Control humano restaurado. La conexión con el exterior vuelve a estar disponible. Su trabajo en equipo venció a NODO veinte. Han escapado.',
     fired: false,
   },
+  { id: 'ai_errors', defaultName: 'IA-intentos-fallidos.mp3', title: 'IA · Reacción a tres errores', triggerTimeSec: null, keywords: ['ia-intentos-fallidos'], fallbackText: 'Sus intentos están dejando un patrón demasiado predecible. Revisen las pistas antes de volver a responder.', fired: false },
+  { id: 'ai_hint', defaultName: 'IA-primera-pista.mp3', title: 'IA · Primera pista solicitada', triggerTimeSec: null, keywords: ['ia-primera-pista'], fallbackText: 'Han solicitado ayuda. Una pequeña concesión. La información por sí sola no basta: tendrán que interpretarla juntos.', fired: false },
+  { id: 'final_resistance', defaultName: 'IA-ultima-resistencia.mp3', title: 'Final · Última resistencia de la IA', triggerTimeSec: null, keywords: ['ia-ultima-resistencia'], fallbackText: 'Acceso al núcleo. Intentando recuperar el control. Error. Protocolo de contención desactivado. Mi cálculo no contempló que trabajarían juntos.', fired: false },
 ];
 
 class AudioEngine {
@@ -158,6 +161,42 @@ class AudioEngine {
   private ambientSessionId = 0;
   private finishTest: ((success: boolean) => void) | null = null;
   private testingAmbient = false;
+  private narrationQueue: Array<{ track: AudioTrackConfig; onEnd?: () => void }> = [];
+  private narrationActive = false;
+  private narrationGeneration = 0;
+
+  public enqueueNarration(track: AudioTrackConfig, onEnd?: () => void) {
+    this.narrationQueue.push({ track, onEnd });
+    this.nextNarration();
+  }
+
+  private nextNarration() {
+    if (this.narrationActive) return;
+    const next = this.narrationQueue.shift();
+    if (!next) return;
+    const generation = this.narrationGeneration;
+    this.narrationActive = true;
+    this.playVoiceTrack(next.track, () => {
+      if (generation !== this.narrationGeneration) return;
+      this.narrationActive = false;
+      next.onEnd?.();
+      this.nextNarration();
+    });
+  }
+
+  public clearNarration() {
+    this.narrationGeneration++;
+    this.narrationQueue = [];
+    this.narrationActive = false;
+    this.stopVoice();
+  }
+
+  public removeCustomAudio(trackId: string) {
+    const url = this.audioUrls[trackId];
+    delete this.audioUrls[trackId];
+    delete this.customFileNames[trackId];
+    if (url?.startsWith('blob:')) URL.revokeObjectURL(url);
+  }
 
   constructor() {
     // Client-side initialization
@@ -240,7 +279,9 @@ class AudioEngine {
   }
 
   public setTrackBlobUrl(trackId: string, url: string, fileName?: string) {
+    const previous = this.audioUrls[trackId];
     this.audioUrls[trackId] = url;
+    if (previous && previous !== url && previous.startsWith('blob:')) URL.revokeObjectURL(previous);
     if (fileName) {
       this.customFileNames[trackId] = fileName;
     }
@@ -517,6 +558,7 @@ class AudioEngine {
       this.voiceAudio.volume = this.voiceVolume;
 
       let hasFinished = false;
+      let fallbackStarted = false;
       const handleFinish = () => {
         if (hasFinished || sessionId !== this.voiceSessionId) return;
         hasFinished = true;
@@ -527,11 +569,13 @@ class AudioEngine {
       };
 
       this.voiceAudio.onended = handleFinish;
-      this.voiceAudio.onerror = () => {
+      const fallback = () => {
         if (sessionId !== this.voiceSessionId || this.currentVoiceTrackId !== track.id) return;
-        console.warn(`File "${track.defaultName}" failed to load or decode (404/demux). Falling back to speech:`);
+        if (fallbackStarted || hasFinished) return;
+        fallbackStarted = true;
         this.playSpeechSynthesisFallback(track, handleFinish, sessionId);
       };
+      this.voiceAudio.onerror = fallback;
 
       const playPromise = this.voiceAudio.play();
       if (playPromise !== undefined) {
@@ -540,7 +584,7 @@ class AudioEngine {
             return;
           }
           console.warn(`File "${track.defaultName}" could not be played. Triggering synthesized voice fallback:`, err);
-          this.playSpeechSynthesisFallback(track, handleFinish, sessionId);
+          fallback();
         });
       }
     } else {
@@ -685,7 +729,7 @@ class AudioEngine {
       };
 
       // Watchdog timeout: guarantees onFinish is called even if browser speech API gets stuck!
-      const estDurationSec = Math.min(14, Math.max(3.5, track.fallbackText.length / 14));
+      const estDurationSec = Math.max(15, track.fallbackText.length / 7 + 15);
       watchdogTimer = window.setTimeout(() => {
         safeFinish();
       }, (estDurationSec + 1) * 1000);

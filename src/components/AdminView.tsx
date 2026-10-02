@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { EventLog } from './EventLog';
 import { eventLogService } from '../services/eventLogService';
+import { AudioLibrary } from './AudioLibrary';
 
 interface AdminViewProps {
   networkMode?: boolean;
@@ -639,7 +640,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         </div>
 
         {/* Audio Tracks Inspector & Local File Uploader */}
-        <div className="p-6 rounded-xl bg-[#0f1016] border border-[#222433] shadow-lg space-y-4">
+        {networkMode ? <AudioLibrary locked={gameState === 'RUNNING' || gameState === 'INTRO'} /> : <div className="p-6 rounded-xl bg-[#0f1016] border border-[#222433] shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold uppercase tracking-wider text-white font-display">
@@ -1037,7 +1038,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               );
             })}
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );

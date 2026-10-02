@@ -142,11 +142,20 @@ export class Game {
       const fail = message => {
         const k = stageKey(b); b.failures[k] = (b.failures[k] ?? 0) + 1;
         if (b.failures[k] >= 3) b.autoShown[k] = true;
+        if (b.failures[k] === 3 && !this.data.fired.includes('ai_errors')) {
+          this.data.fired.push('ai_errors');
+          this.event('reaction', 'NODO-20 detectó un patrón de intentos', { trackId: 'ai_errors' });
+        }
         this.data.revision++;
         return { message, bad: true };
       };
       if (input.action === 'hint') {
-        if (view < 4 && !b.hints.includes(view)) { b.hints.push(view); this.event('hint', `Pista solicitada en el puesto ${view + 1}`); }
+        if (view < 4 && !b.hints.includes(view)) {
+          b.hints.push(view);
+          const firstHint = !this.data.fired.includes('ai_hint');
+          if (firstHint) this.data.fired.push('ai_hint');
+          this.event('hint', `Pista solicitada en el puesto ${view + 1}`, firstHint ? { trackId: 'ai_hint' } : {});
+        }
         return;
       }
       if (input.action === 'validatecode') {

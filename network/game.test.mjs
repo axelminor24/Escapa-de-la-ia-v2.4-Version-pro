@@ -84,3 +84,16 @@ test('manual rollback invalidates later stages', () => {
   const f = fixture(); f.control('SKIP_INTRO'); for(let number=1;number<=4;number++)f.control('CHALLENGE',{number});
   f.control('CHALLENGE',{number:2}); assert.deepEqual(f.game.data.board.solved,[0]); assert.equal(f.game.data.board.view,1); assert.equal(f.game.data.board.footSince,null);
 });
+
+test('AI reacts once to errors and the first hint, without changing the clock or answers', () => {
+  const f = fixture(); f.control('SKIP_INTRO'); f.advance(20000);
+  for (let i = 0; i < 5; i++) f.player('validatecode', {stationCode:'bad'});
+  f.player('hint'); f.player('hint');
+  assert.equal(f.game.data.events.filter(e => e.trackId === 'ai_errors').length,1);
+  assert.equal(f.game.data.events.filter(e => e.trackId === 'ai_hint').length,1);
+  assert.equal(f.game.snapshot().remainingSec,880);
+  assert.deepEqual(f.game.data.board.solved,[]);
+  assert.equal(f.game.data.board.failures.sequence,5);
+  f.control('RESET'); f.control('SKIP_INTRO'); f.player('hint');
+  assert.equal(f.game.data.events.filter(e => e.trackId === 'ai_hint').length,1);
+});

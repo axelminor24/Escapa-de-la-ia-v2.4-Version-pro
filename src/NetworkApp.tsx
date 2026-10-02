@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AdminView } from './components/AdminView';
-import { PlayerView } from './components/PlayerView';
+import { MissionDisplay } from './components/MissionDisplay';
+import { restoreRecordings } from './services/audioLibrary';
 import { audioEngine, INITIAL_TRACKS } from './services/audioEngine';
 import { eventLogService } from './services/eventLogService';
 import type { ChallengesState, GameStatus } from './types';
 
 type RoomEvent = { id: number; kind: string; title: string; status: GameStatus; elapsedSec: number; timestamp: number; trackId?: string };
-type Snapshot = { serverVersion?: number; serverNow?: number; runId: string; revision: number; status: GameStatus; elapsedSec: number; totalSec: number; remainingSec: number; board: { solved: number[]; team: string }; events: RoomEvent[]; peers: { control: number; display: number; challenges: number } };
+type Snapshot = { serverVersion?: number; serverNow?: number; runId: string; revision: number; status: GameStatus; elapsedSec: number; totalSec: number; remainingSec: number; board: { solved: number[]; team: string; hints?: number[]; failures?: Record<string, number> }; events: RoomEvent[]; peers: { control: number; display: number; challenges: number } };
 type Links = { control: string; stations: { display: string; challenges: string }[] };
 const format = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 const requestId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -32,6 +33,12 @@ export default function NetworkApp() {
   const eventRun = useRef('');
   const soundEnabled = useRef(false);
   const commandRef = useRef<(action: string) => void>(() => {});
+  const pendingIntroRun = useRef<string | null>(null);
+  const completeIntro = useCallback((runId: string) => {
+    if (latest.current?.runId !== runId || latest.current.status !== 'INTRO') return;
+    if (commandInFlight.current) pendingIntroRun.current = runId;
+    else commandRef.current('SKIP_INTRO');
+  }, []);
 
   const receive = useCallback((next: Snapshot) => {
     if (!next?.board) throw new Error('La partida no está disponible.');
@@ -46,26 +53,25 @@ export default function NetworkApp() {
     latest.current = next; setRoom(next); setConnected(true);
     if (!display && soundEnabled.current) {
       if (newRun || previous?.status !== next.status || reconnect) {
-        audioEngine.stopVoice(); audioEngine.stopAmbient();
+        audioEngine.clearNarration(); audioEngine.stopAmbient();
         if (next.status === 'RUNNING' || next.status === 'INTRO') audioEngine.startAmbient();
       }
       for (const event of next.events) {
         if (event.id <= lastEvent.current) continue;
         eventLogService.logEvent({ category: event.kind === 'challenge' ? 'CHALLENGE' : event.kind === 'timeline' ? 'TIMELINE' : 'STATE', title: event.title, source: 'Partida compartida', gameTime: format(next.totalSec - event.elapsedSec), elapsedSec: event.elapsedSec });
         // Only recent events produce sound; page reloads never repeat old tracks.
-        if (!initial && (next.serverNow ?? Date.now()) - event.timestamp < 5000 && event.trackId) {
+        const allowedTrack = next.status === 'VICTORY' ? event.trackId === 'victory' : next.status === 'GAMEOVER' ? event.trackId === 'gameover' : next.status === 'INTRO' || next.status === 'RUNNING';
+        if (!initial && allowedTrack && (next.serverNow ?? Date.now()) - event.timestamp < 5000 && event.trackId) {
           const track = INITIAL_TRACKS.find(t => t.id === event.trackId);
           if (track) {
-            if (event.kind === 'challenge') audioEngine.playInterruptingVoiceTrack(track);
-            else audioEngine.playVoiceTrack(track, event.trackId === 'start' ? () => {
-              if (latest.current?.runId === next.runId && latest.current.status === 'INTRO') commandRef.current('SKIP_INTRO');
-            } : undefined);
+            if (event.trackId === 'victory') audioEngine.enqueueNarration(INITIAL_TRACKS.find(t => t.id === 'final_resistance')!);
+            audioEngine.enqueueNarration(track, event.trackId === 'start' ? () => completeIntro(next.runId) : undefined);
           }
         }
       }
     }
     lastEvent.current = next.events.at(-1)?.id ?? 0;
-  }, [display]);
+  }, [display, completeIntro]);
 
   useEffect(() => {
     fetch('/api/state', { cache: 'no-store' }).then(r => r.json()).then(receive).catch(() => setError('No se pudo conectar con la computadora principal.'));
@@ -74,7 +80,7 @@ export default function NetworkApp() {
 
   useEffect(() => {
     if (!config || !display && !enabled) return;
-    const disconnected = () => { setConnected(false); audioEngine.stopAmbient(); audioEngine.stopVoice(); };
+    const disconnected = () => { setConnected(false); audioEngine.stopAmbient(); audioEngine.clearNarration(); };
     if (config.transport === 'poll') {
       let active = true, timer: number;
       const poll = async () => {
@@ -88,13 +94,13 @@ export default function NetworkApp() {
       };
       poll();
       const check = window.setInterval(() => { if (Date.now() - received.current > 5000) disconnected(); }, 1000);
-      return () => { active = false; clearTimeout(timer); clearInterval(check); audioEngine.stopAmbient(); audioEngine.stopVoice(); };
+      return () => { active = false; clearTimeout(timer); clearInterval(check); audioEngine.stopAmbient(); audioEngine.clearNarration(); };
     }
     const stream = new EventSource(`/api/events?role=${display ? 'display' : 'control'}`);
     stream.onmessage = event => { try { receive(JSON.parse(event.data)); } catch { disconnected(); } };
     stream.onerror = disconnected;
     const check = window.setInterval(() => { if (Date.now() - received.current > 3000) disconnected(); }, 1000);
-    return () => { stream.close(); clearInterval(check); audioEngine.stopAmbient(); audioEngine.stopVoice(); };
+    return () => { stream.close(); clearInterval(check); audioEngine.stopAmbient(); audioEngine.clearNarration(); };
   }, [display, enabled, receive, config]);
 
   const command = useCallback(async (action: string, extra: Record<string, unknown> = {}) => {
@@ -113,8 +119,12 @@ export default function NetworkApp() {
       if (action === 'RESET') setNotice('Partida reiniciada: reloj en 15:00 y desafíos preparados desde el comienzo.');
       return true;
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo enviar la orden.'); return false; }
-    finally { commandInFlight.current = false; setBusy(false); }
-  }, [receive]);
+    finally {
+      commandInFlight.current = false; setBusy(false);
+      const pending = pendingIntroRun.current; pendingIntroRun.current = null;
+      if (pending) queueMicrotask(() => completeIntro(pending));
+    }
+  }, [receive, completeIntro]);
   commandRef.current = command;
 
   useEffect(() => {
@@ -127,6 +137,7 @@ export default function NetworkApp() {
     setError(''); setBusy(true);
     try {
       audioEngine.prepare();
+      await restoreRecordings().catch(() => setNotice('No se pudieron recuperar los audios guardados. Podés cargarlos desde La voz de NODO-20.'));
       const response = await fetch('/api/operator', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Escape-Request': '1' }, body: JSON.stringify({ key }), signal: AbortSignal.timeout(5000) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
@@ -146,7 +157,7 @@ export default function NetworkApp() {
       if (latest.current?.status === 'INTRO') {
         const runId = latest.current.runId;
         const track = INITIAL_TRACKS.find(t => t.id === 'start');
-        if (track) audioEngine.playVoiceTrack(track, () => { if(latest.current?.runId === runId && latest.current.status === 'INTRO') commandRef.current('SKIP_INTRO'); });
+        if (track) audioEngine.enqueueNarration(track, () => completeIntro(runId));
       }
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo habilitar el control.'); }
     finally { setBusy(false); }
@@ -163,7 +174,7 @@ export default function NetworkApp() {
   }, []);
   if (!room) return <main className="min-h-screen grid place-content-center text-center p-8"><h1 className="text-3xl mb-5">Conectando con la partida</h1><p role="status">{error || 'Comprobando la computadora principal…'}</p></main>;
   const challenges = Object.fromEntries([1,2,3,4].map(i => [i, room.board.solved.includes(i - 1)])) as unknown as ChallengesState;
-  if (display) return <><PlayerView remainingStr={connected ? format(room.remainingSec) : '--:--'} gameState={room.status} challenges={challenges} isCritical={room.status === 'RUNNING' && room.remainingSec <= 180} onTriggerStart={() => {}} readOnly />{!connected && <div role="alert" className="fixed bottom-5 inset-x-4 text-center text-amber-200 text-xl z-[60]">Conexión interrumpida. Esperando a la computadora principal…</div>}</>;
+  if (display) return <MissionDisplay room={room} connected={connected} />;
   if (!enabled) return <main className="min-h-screen grid place-content-center text-center p-8 gap-6"><h1 className="text-3xl font-bold">PC 1 · Control del coordinador</h1><p>Desde aquí se controlan el reloj, los sonidos y las tres pantallas.</p>{config?.requiresCode && <label className="grid gap-2 text-left">Clave del coordinador<input type="password" autoComplete="current-password" value={key} onChange={event => setKey(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !busy) activate(); }} className="bg-slate-900 border border-slate-600 rounded-lg p-3" /></label>}<button onClick={activate} disabled={busy || !config} className="bg-red-600 rounded-lg px-6 py-4 font-bold disabled:opacity-50">Activar control y sonido</button><p role="alert" className="text-amber-200 max-w-2xl">{error}</p></main>;
   return <>
     <section className="mx-auto max-w-7xl px-6 pt-5 text-sm" aria-label="Conexión de las tres computadoras">

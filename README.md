@@ -18,6 +18,16 @@ Si se pierde conexión, las pantallas avisan y los desafíos no aceptan envíos 
 
 ### Audio y registros
 
+### Inmersión y voz de NODO-20
+
+La pantalla del cronómetro cambia de vigilancia a rastreo a mitad de la partida y a contención durante los últimos tres minutos. Los cuatro sectores se recuperan con los desafíos. El final muestra el equipo, tiempo utilizado, sectores, pistas y errores. La IA reacciona una vez a los tres primeros errores de una etapa y una vez a la primera pista; estas intervenciones no descuentan tiempo.
+
+En el control, abrir **La voz de NODO-20** y pulsar **Descargar guion**. Cada evento tiene su texto sugerido y explica cuándo suena. Grabar las intervenciones por separado con la voz elegida y cargar cada MP3 o WAV en su casilla (hasta 20 MB por pista). Se puede probar, reemplazar o volver a la voz predeterminada estando en espera o pausa. Conviene que las intervenciones normales sean breves, de unos 5–12 segundos; la introducción puede ser más larga.
+
+Las grabaciones se guardan en el navegador de la PC del coordinador y se recuperan al recargar. No se suben al sitio ni se copian a otras computadoras: conservar los originales y volver a cargarlos si se cambia de PC, perfil de navegador o se borran sus datos. Las pantallas de participantes siguen sin reproducir audio.
+
+La narración se reproduce en una cola, respetando el final real de cada archivo. Si coinciden eventos, el siguiente espera. La introducción termina antes de iniciar el reloj. Victoria y tiempo agotado cancelan los avisos pendientes; en la victoria se escucha **Última resistencia** y después **Control humano restaurado**. Pausar, reiniciar o perder conexión vacía la cola para evitar mensajes atrasados al volver.
+
 Se conserva el mezclador, la carga de MP3 del repositorio original y las descargas JSON/CSV. Cargar los audios en la PC del coordinador antes de iniciar. Sin archivos, se usan voz y ambiente sintetizados cuando el navegador los permite. El fin de la explicación inicia la cuenta; el coordinador también puede saltarla. Probar el sonido antes de la muestra.
 
 Se integraron las mejoras de GitHub del 29 de septiembre: ambiente continuo, reducción gradual de volumen durante las voces y correcciones del cronómetro y del estado de los desafíos. En las tres pantallas, la API sigue siendo la autoridad para el tiempo y la victoria. Todos los botones de prueba permiten detener el sonido; la prueba del ambiente dura 3,5 segundos. Pausar o desconectarse impide que una carga tardía reactive el ambiente.

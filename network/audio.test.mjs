@@ -111,3 +111,37 @@ test('a late error from the previous file cannot add fallback over a new upload'
   assert.equal(players[0].src, 'blob:uploaded-ambient');
   assert.equal(starts(), 0);
 });
+
+test('narration waits for the full file before playing the next event', () => {
+  const { audioEngine, INITIAL_TRACKS, players } = setup();
+  const intro = INITIAL_TRACKS.find(t => t.id === 'start');
+  const challenge = INITIAL_TRACKS.find(t => t.id === 'challenge_1');
+  let completed = 0;
+  audioEngine.enqueueNarration(intro, () => completed++);
+  audioEngine.enqueueNarration(challenge);
+  assert.equal(players[1].src, encodeURI(intro.defaultName));
+  assert.equal(completed, 0);
+  const finishIntro = players[1].onended;
+  finishIntro();
+  assert.equal(completed, 1);
+  assert.equal(players[1].src, encodeURI(challenge.defaultName));
+  finishIntro();
+  assert.equal(completed, 1);
+});
+
+test('reset or pause cancels queued audio and stale completion cannot restart it', () => {
+  const { audioEngine, INITIAL_TRACKS, players } = setup();
+  let startedClock = false;
+  audioEngine.enqueueNarration(INITIAL_TRACKS.find(t => t.id === 'start'), () => { startedClock = true; });
+  audioEngine.enqueueNarration(INITIAL_TRACKS.find(t => t.id === 'challenge_1'));
+  const staleEnd = players[1].onended;
+  audioEngine.clearNarration();
+  staleEnd();
+  assert.equal(startedClock, false);
+  assert.equal(players[1].paused, true);
+  audioEngine.enqueueNarration(INITIAL_TRACKS.find(t => t.id === 'final_resistance'));
+  audioEngine.enqueueNarration(INITIAL_TRACKS.find(t => t.id === 'victory'));
+  assert.equal(players[1].src, 'IA-ultima-resistencia.mp3');
+  players[1].onended();
+  assert.equal(players[1].src, encodeURI(INITIAL_TRACKS.find(t => t.id === 'victory').defaultName));
+});

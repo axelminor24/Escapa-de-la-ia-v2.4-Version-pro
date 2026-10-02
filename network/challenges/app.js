@@ -15,6 +15,17 @@ let savedDraft=null;
 try{savedDraft=JSON.parse(localStorage.getItem(KEY));}catch{}
 const statusBanner=document.createElement('div');
 statusBanner.id='network-status';statusBanner.setAttribute('role','status');app.before(statusBanner);
+const missionSignal=document.createElement('section');missionSignal.className='mission-signal';missionSignal.setAttribute('aria-label','Estado de NODO-20');app.before(missionSignal);
+function updateMissionSignal(next){
+  const ended=['VICTORY','GAMEOVER'].includes(next.status),won=next.status==='VICTORY';
+  const phase=won?'restored':next.remainingSec<=180?'critical':next.elapsedSec>=450?'traced':'watching';
+  document.body.dataset.missionPhase=phase;
+  const sectors=['Archivo','Servidor','Movimiento','Núcleo'];
+  const latest=next.events.filter(event=>event.trackId).at(-1);
+  const recent=latest&&(next.serverNow??Date.now())-latest.timestamp<12000;
+  const label=won?'CONTROL HUMANO RESTAURADO':next.status==='GAMEOVER'?'SIMULACIÓN TERMINADA':next.status==='PAUSED'?'MISIÓN EN PAUSA':next.status==='IDLE'?'ESPERANDO AL COORDINADOR':phase==='critical'?'PROTOCOLO DE CONTENCIÓN':phase==='traced'?'RASTREO ACTIVO':'SISTEMA BAJO VIGILANCIA';
+  missionSignal.innerHTML=`<div class="mission-signal-heading"><b>NODO—20</b><span>${label}</span></div><div class="mission-sector-strip">${sectors.map((name,i)=>`<span class="${next.board.solved.includes(i)?'recovered':''}">${name} · ${next.board.solved.includes(i)?'Recuperado':'Bloqueado'}</span>`).join('')}</div>${ended?`<p><b>${esc(next.board.team||'Equipo superviviente')}</b> · Tiempo utilizado: ${time(next.elapsedSec)} · Pistas: ${next.board.hints.length} · Errores: ${Object.values(next.board.failures).reduce((sum,n)=>sum+n,0)}</p>`:recent?`<p>${esc(latest.title)}</p>`:''}`;
+}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch{}}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function seconds(){return shared?.remainingSec??0;}
@@ -62,6 +73,7 @@ function applySnapshot(next,force=false){
   const previous=shared,newRun=!previous||previous.runId!==next.runId;
   const changed=newRun||previous.revision!==next.revision||previous.status!==next.status||force;
   shared=next;lastSeen=Date.now();connectivity(true);
+  updateMissionSignal(next);
   if(!changed)return;
   const prior=state;
   const mapped={IDLE:'ready',INTRO:'waiting',RUNNING:'playing',PAUSED:'paused',VICTORY:'won',GAMEOVER:'lost'};
